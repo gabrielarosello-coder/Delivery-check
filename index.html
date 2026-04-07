@@ -172,6 +172,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <div class="sb-lbl">Name mapping <span style="color:var(--muted2);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
     <p style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">For VTs where the sheet name doesn't match the folder name. One per line:<br><code style="color:var(--info)">Sheet name = Folder name</code></p>
     <textarea id="name-map" rows="4" style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:11px;outline:none;resize:vertical;font-family:'Courier New',monospace;line-height:1.6" placeholder="Vivian - VDS(051) = Vivian Olivieri&#10;Gabriel - GNC(090) = Gabriel Nunez"></textarea>
+    <button onclick="g('name-map').value=''" style="margin-top:4px;font-size:10px;padding:3px 10px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer">Clear mapping</button>
   </div>
   <div class="sb-sec">
     <div class="sb-lbl">Additional QA checks</div>
@@ -342,41 +343,93 @@ async function driveQ(q,fields,pt){
 }
 
 async function scanDrive(folderId){
+  const audioRe=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac)$/i;
+  const zipRe=/\.zip$/i;
+  const anyAudioOrZip=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac|zip)$/i;
+
+  function makeFile(f, folderName, folderId, folderUrl){
+    const isZip=zipRe.test(f.name);
+    const isNonWav=audioRe.test(f.name)&&!/\.wav$/i.test(f.name);
+    return{
+      name:f.name, stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),
+      folder:folderName, folderId,
+      size:parseInt(f.size||0), sizeKb:parseInt(f.size||0)/1024,
+      mimeType:f.mimeType, modified:f.modifiedTime,
+      id:f.id, isZip, isNonWav,
+      url:`https://drive.google.com/file/d/${f.id}/view`,
+      folderUrl,
+    };
+  }
+
+  // 1. Get subfolders
   const subs=[];let pt='';
   do{
     const d=await driveQ(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,'nextPageToken,files(id,name)',pt);
     subs.push(...(d.files||[]));pt=d.nextPageToken||'';
   }while(pt);
   log(`${subs.length} VT folders found`);
+
   const files=[];
-  const audioRe=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac)$/i;
-  const zipRe=/\.zip$/i;
-  const anyAudioOrZip=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac|zip)$/i;
+  const rootFolderUrl=`https://drive.google.com/drive/folders/${folderId}`;
+
+  // 2. Scan files inside each subfolder
   for(const sub of subs){
+    const subFolderUrl=`https://drive.google.com/drive/folders/${sub.id}`;
     let pt2='';
     do{
       const d=await driveQ(`'${sub.id}' in parents and trashed=false`,'nextPageToken,files(id,name,size,mimeType,modifiedTime)',pt2);
       for(const f of(d.files||[])){
         if(!anyAudioOrZip.test(f.name))continue;
-        const isZip=zipRe.test(f.name);
-        const isNonWav=audioRe.test(f.name)&&!/\.wav$/i.test(f.name);
-        files.push({
-          name:f.name,stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),
-          folder:sub.name,folderId:sub.id,
-          size:parseInt(f.size||0),sizeKb:parseInt(f.size||0)/1024,
-          mimeType:f.mimeType,modified:f.modifiedTime,
-          id:f.id,isZip,isNonWav,
-          url:`https://drive.google.com/file/d/${f.id}/view`,
-          folderUrl:`https://drive.google.com/drive/folders/${sub.id}`,
-        });
+        files.push(makeFile(f, sub.name, sub.id, subFolderUrl));
       }
       pt2=d.nextPageToken||'';
     }while(pt2);
     log(`  ${sub.name} ✓`);
   }
-  // Store subfolder URLs
+
+  // 3. Also scan files directly in the root folder (no subfolder)
+  // These use the filename to infer the VT name
+  let pt3='';
+  const rootFiles=[];
+  do{
+    const d=await driveQ(`'${folderId}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false`,'nextPageToken,files(id,name,size,mimeType,modifiedTime)',pt3);
+    for(const f of(d.files||[])){
+      if(!anyAudioOrZip.test(f.name))continue;
+      rootFiles.push(f);
+    }
+    pt3=d.nextPageToken||'';
+  }while(pt3);
+
+  if(rootFiles.length){
+    log(`${rootFiles.length} files found directly in root folder`);
+    // For root files, extract VT name from filename
+    // Format: ShowName_EP01_PT_VTName.wav → VT = "VTName"
+    // Or: EP01_VTName.wav → VT = "VTName"
+    for(const f of rootFiles){
+      // Try to extract VT name: last segment after last underscore before extension
+      const stem=f.name.replace(/\.[^.]+$/,'');
+      // Pattern: anything_EP##_PT_VTNAME or anything_EP##_VTNAME
+      const m=stem.match(/[_\-](?:PT[_\-])?([^_\-]+)$/i);
+      const vtName=m?m[1]:'_root_';
+      // Use vtName as a virtual "folder" name for matching purposes
+      files.push(makeFile(f, vtName, folderId, rootFolderUrl));
+    }
+    // Add virtual "folders" for root VTs so they appear in match modal
+    const rootVTs=[...new Set(rootFiles.map(f=>{
+      const stem=f.name.replace(/\.[^.]+$/,'');
+      const m=stem.match(/[_\-](?:PT[_\-])?([^_\-]+)$/i);
+      return m?m[1]:'_root_';
+    }))];
+    rootVTs.forEach(vt=>{
+      if(!subs.find(s=>s.name===vt)){
+        subs.push({id:folderId, name:vt, isVirtual:true});
+      }
+    });
+    log(`  Root files assigned to VTs: ${rootVTs.join(', ')}`);
+  }
+
   const subMap={};
-  subs.forEach(s=>subMap[s.name]={id:s.id,url:`https://drive.google.com/drive/folders/${s.id}`});
+  subs.forEach(s=>subMap[s.name]={id:s.id, url:s.isVirtual?rootFolderUrl:`https://drive.google.com/drive/folders/${s.id}`});
   return{subs,files,subMap};
 }
 
