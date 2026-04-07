@@ -112,6 +112,33 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
 .empty{display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:8px;color:var(--muted);padding:40px}
 .empty-icon{font-size:36px}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* MATCH MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:12px;width:min(700px,96vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.modal-title{font-size:15px;font-weight:700;flex:1}
+.modal-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.modal-body{overflow-y:auto;padding:16px 20px;flex:1}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+.btn-confirm{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-confirm:hover{background:var(--acc2)}
+.btn-cancel{padding:9px 16px;background:var(--surf2);color:var(--muted);border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer}
+.btn-cancel:hover{color:var(--text)}
+.match-table{width:100%;border-collapse:collapse;font-size:12px}
+.match-table th{background:var(--surf2);padding:7px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);position:sticky;top:0}
+.match-table td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.match-row-ok td{background:rgba(61,214,140,.04)}
+.match-row-warn td{background:rgba(245,166,35,.05)}
+.match-row-miss td{background:rgba(255,92,92,.05)}
+.match-row-unmatched td{background:rgba(245,166,35,.06)}
+.match-status{font-size:11px;font-weight:600;white-space:nowrap}
+.match-folder-sel{background:var(--surf2);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-size:12px;outline:none;max-width:180px}
+.match-folder-sel:focus{border-color:var(--accent)}
+.unmatched-alert{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:12px 16px;margin-bottom:14px}
+.unmatched-alert-title{font-size:12px;font-weight:700;color:var(--warn);margin-bottom:6px}
+.unmatched-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(245,166,35,.15)}
+.unmatched-item:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -128,6 +155,11 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <div class="field"><label>Script sheet tab name</label><input id="sname" type="text" placeholder="Exact tab name (e.g. GUION COMPLETO)"></div>
     <div class="field"><label>Drive deliveries folder</label><input id="fid" type="text" placeholder="Folder ID or full Google Drive link"></div>
     <p class="hint">Sheet and folder must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">Name mapping <span style="color:var(--muted2);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
+    <p style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5">For VTs where the sheet name doesn't match the folder name. One per line:<br><code style="color:var(--info)">Sheet name = Folder name</code></p>
+    <textarea id="name-map" rows="4" style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:11px;outline:none;resize:vertical;font-family:'Courier New',monospace;line-height:1.6" placeholder="Vivian - VDS(051) = Vivian Olivieri&#10;Gabriel - GNC(090) = Gabriel Nunez"></textarea>
   </div>
   <div class="sb-sec">
     <div class="sb-lbl">Additional QA checks</div>
@@ -155,6 +187,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <button class="tab active" onclick="showTab('report',this)">Report by VT</button>
     <button class="tab" onclick="showTab('qa',this)">QA Issues</button>
     <button class="tab" onclick="showTab('matrix',this)">Matrix</button>
+    <button class="tab" id="tab-unmatched" onclick="showTab('unmatched',this)" style="display:none">⚠ Unmatched folders</button>
   </div>
   <div class="tab-area">
     <!-- REPORT -->
@@ -208,10 +241,44 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
         <div id="matrix-wrap"><div class="empty"><span class="empty-icon">📊</span>No data</div></div>
       </div>
     </div>
+    <!-- UNMATCHED FOLDERS -->
+    <div class="pane" id="pane-unmatched">
+      <div class="fbar">
+        <span style="font-size:12px;color:var(--warn);font-weight:600">⚠ Folders in Drive with audio that don't match any VT in the script</span>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Folder name</th><th>Audio files</th><th>Action</th></tr></thead>
+        <tbody id="body-unmatched"></tbody></table>
+      </div>
+    </div>
   </div>
   <div class="statusbar" id="statusbar">Enter Sheet ID and Folder ID, then click Run analysis.</div>
 </main>
 </div>
+
+<!-- MATCH REVIEW MODAL -->
+<div class="modal-overlay" id="match-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🔗 VT → Folder matching</div>
+        <div class="modal-sub">Review how VTs from the script are matched to Drive folders. Fix any wrong matches before running.</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="unmatched-folders-alert"></div>
+      <table class="match-table">
+        <thead><tr><th>VT (from script)</th><th>Matched folder</th><th>Status</th></tr></thead>
+        <tbody id="match-tbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeMatchModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmMatching()">✓ Looks good — run analysis</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const DEFAULTS={sid:'1uJs387TBHVchInhFZifihGxX333AVnWwjF8eS6BLkn0',sname:'Guion sabana',fid:'1gUZJhSW1i3-7rMaUzDhZ2c3-5Z4cM3Hw'};
 let API_KEY='AIzaSyCmI5gCYkkzxo-h7oUJw8SZyIF6KhpJ1Ik';
@@ -224,6 +291,7 @@ let STATE={combos:[],files:[],subfolders:[],vtReports:[],qa:[]};
     g('sname').value=p.sname||DEFAULTS.sname;
     g('fid').value=p.fid||DEFAULTS.fid;
     if(p.apikey) API_KEY=p.apikey;
+    if(p.namemap) g('name-map').value=p.namemap;
   }catch{}
 })();
 
@@ -291,9 +359,12 @@ async function scanDrive(folderId){
 
 // ── Sheet ─────────────────────────────────────────────────────
 async function fetchSheet(sid,sname){
+  // range=A:Z forces reading ALL rows ignoring any active filters
+  // tq=select * also bypasses filters in gviz endpoint
   const endpoints=[
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}&range=A:Z&headers=1`,
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}&headers=1`,
     `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}`,
-    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(sname)}`,
   ];
   let text=null,lastErr='';
   for(const url of endpoints){
@@ -339,32 +410,73 @@ function parseCSV(text){
 
 // ── Matching ──────────────────────────────────────────────────
 function norm(s){return(s||'').toLowerCase().replace(/[\s\-_.]+/g,' ').trim();}
-function vtMatch(a,b){
+
+function extractName(s){
+  let c=(s||'').replace(/\s*[-\u2013]\s*[A-Z]{2,6}\s*\(\d+\)/gi,'')
+               .replace(/\s*\([^)]*\)/g,'')
+               .replace(/\s*[-\u2013]\s*[A-Z0-9]{2,10}$/gi,'')
+               .replace(/\s+/g,' ').trim();
+  return c.toLowerCase();
+}
+
+function nameTokens(s){
+  return extractName(s).split(/\s+/).filter(w=>w.length>=3);
+}
+
+function extractCode(s){
+  const m=(s||'').match(/[-\u2013]\s*([A-Z]{2,6})\s*\(\d+\)/i);
+  return m?m[1].toLowerCase():null;
+}
+
+function extractFirstName(s){
+  // Remove codes like "- VDS(051)" then get first word
+  let c=(s||'').replace(/\s*[-\u2013]\s*[A-Z]{2,6}\s*\(\d+\)/gi,'')
+               .replace(/\s*\([^)]*\)/g,'')
+               .replace(/\s*[-\u2013]\s*[A-Z0-9]{2,10}$/gi,'')
+               .replace(/\s+/g,' ').trim();
+  return c.toLowerCase().split(' ')[0]||'';
+}
+
+function vtMatch(a,b,customMap){
+  // Check custom mapping first (e.g. "Vivian - VDS(051)" -> "Vivian Olivieri")
+  if(customMap){
+    const mapped=customMap[norm(a)]||customMap[norm(b)];
+    if(mapped&&(norm(mapped)===norm(b)||norm(mapped)===norm(a)))return true;
+  }
   const na=norm(a),nb=norm(b);
   if(na===nb)return true;
-  const ap=na.split(' '),bp=nb.split(' ');
-  if(ap[0]&&bp[0]&&ap[0]===bp[0]&&ap[0].length>1)return true;
+  // Clean names (remove codes)
+  const ca=extractName(a),cb=extractName(b);
+  if(ca&&cb&&(ca===cb||ca.includes(cb)||cb.includes(ca)))return true;
+  // First name match
+  const fa=extractFirstName(a),fb=extractFirstName(b);
+  if(fa&&fb&&fa===fb&&fa.length>2)return true;
+  const ta=nameTokens(a),tb=nameTokens(b);
+  const sh=ta.length<=tb.length?ta:tb;
+  const lo=ta.length<=tb.length?tb:ta;
+  if(sh.length>0&&sh.every(t=>lo.some(l=>l.startsWith(t)||t.startsWith(l))))return true;
   return na.includes(nb)||nb.includes(na);
 }
+
 function epMatch(stem,ep){
   const n=ep.replace(/[^0-9]/g,''),p=n.padStart(2,'0');
   return[`ep${n}`,`ep${p}`,`ep0${n}`,`ep_${n}`,`ep_${p}`,`_${n}_`,`_${p}_`,`_${n}.`,`_${p}.`].some(x=>stem.includes(x));
 }
 
 // ── Build reports ─────────────────────────────────────────────
-function buildReports(combos,files,subs,subMap){
+function buildReports(combos,files,subs,subMap,customMap){
   const vtNames=[...new Set(combos.map(c=>c.vt))].sort();
   const reports=[];
   for(const vt of vtNames){
     const vtC=combos.filter(c=>c.vt===vt);
-    const matchedSub=subs.find(s=>vtMatch(vt,s.name));
+    const matchedSub=subs.find(s=>vtMatch(vt,s.name,customMap));
     const folderName=matchedSub?.name||null;
     const folderUrl=folderName&&subMap[folderName]?subMap[folderName].url:null;
     if(!folderName){
       reports.push({vt,status:'notfound',folderName:null,folderUrl:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});
       continue;
     }
-    const inF=files.filter(f=>vtMatch(vt,f.folder));
+    const inF=files.filter(f=>vtMatch(vt,f.folder,customMap));
     const deliveredList=[],missing=[];
     for(const{ep}of vtC){
       if(inF.some(f=>epMatch(f.stem,ep)))deliveredList.push(ep);
@@ -422,8 +534,17 @@ function runQA(files,checks){
 // ── Main run ──────────────────────────────────────────────────
 async function run(){
   const btn=g('btn-run');btn.disabled=true;btn.textContent='Analyzing…';g('logbox').innerHTML='';
-  try{localStorage.setItem('dqa',JSON.stringify({sid:v('sid'),sname:v('sname'),fid:v('fid')}));}catch{}
+  try{localStorage.setItem('dqa',JSON.stringify({sid:v('sid'),sname:v('sname'),fid:v('fid'),namemap:g('name-map').value}));}catch{}
   const sid=extractSheetId(v('sid')),sname=v('sname'),fid=extractFolderId(v('fid'));
+  // Parse custom name mapping
+  const customMap={};
+  (g('name-map').value||'').split('\n').forEach(line=>{
+    const parts=line.split('=');
+    if(parts.length>=2){
+      const k=norm(parts[0].trim()),v2=parts.slice(1).join('=').trim();
+      if(k&&v2)customMap[k]=v2;
+    }
+  });
   if(!sid||!fid){alert('Enter Sheet ID and Folder ID.');btn.disabled=false;btn.textContent='▶  Run analysis';return;}
   const checks={empty:g('chk-empty').checked,small:g('chk-small').checked,naming:g('chk-naming').checked,recent:g('chk-recent').checked};
   try{
@@ -433,14 +554,104 @@ async function run(){
     log('Scanning Drive folders…');
     const{subs,files,subMap}=await scanDrive(fid);
     log(`${files.length} audio files found`);setPbar(68);
-    log('Generating report…');
-    const vtReports=buildReports(combos,files,subs,subMap);
+    log('Building match preview…');
+    STATE._pending={combos,files,subs,subMap,checks,customMap};
+    setPbar(90);
+    // Show match review modal before finalizing
+    showMatchModal(combos,subs,files,customMap);
+  }catch(err){log('ERROR: '+err.message);setStat('Error: '+err.message);console.error(err);}
+  btn.disabled=false;btn.textContent='▶  Run analysis';
+}
+
+function showMatchModal(combos,subs,files,customMap){
+  const vtNames=[...new Set(combos.map(c=>c.vt))].sort();
+  // Build initial matching
+  const matchMap={};  // vtName -> folderName (editable)
+  for(const vt of vtNames){
+    const m=subs.find(s=>vtMatch(vt,s.name,customMap));
+    matchMap[vt]=m?m.name:'';
+  }
+  // Find unmatched folders (have audio but no VT claimed them)
+  const claimedFolders=new Set(Object.values(matchMap).filter(Boolean));
+  const unmatchedFolders=subs.filter(s=>{
+    if(claimedFolders.has(s.name))return false;
+    return files.some(f=>f.folder===s.name);
+  });
+
+  // Render unmatched alert
+  let alertHtml='';
+  if(unmatchedFolders.length){
+    const items=unmatchedFolders.map(s=>{
+      const count=files.filter(f=>f.folder===s.name).length;
+      const url=`https://drive.google.com/drive/folders/${s.id}`;
+      return`<div class="unmatched-item">
+        <span style="color:var(--warn)">⚠</span>
+        <a href="${esc(url)}" target="_blank" style="color:var(--acc2);font-weight:600">${esc(s.name)}</a>
+        <span style="color:var(--muted)">${count} audio file${count!==1?'s':''} — not linked to any VT in the script</span>
+      </div>`;
+    }).join('');
+    alertHtml=`<div class="unmatched-alert">
+      <div class="unmatched-alert-title">⚠ ${unmatchedFolders.length} folder${unmatchedFolders.length>1?'s':''} with audio not matched to any VT</div>
+      ${items}
+    </div>`;
+  }
+  g('unmatched-folders-alert').innerHTML=alertHtml;
+
+  // Render match table
+  const folderOptions=subs.map(s=>`<option value="${esc(s.name)}" ${matchMap[vtNames[0]]===s.name?'selected':''}>${esc(s.name)}</option>`).join('');
+  const rows=vtNames.map(vt=>{
+    const matched=matchMap[vt];
+    const statusText=matched?'✓ Matched':'✗ No folder';
+    const statusColor=matched?'var(--ok)':'var(--danger)';
+    const rowClass=matched?'match-row-ok':'match-row-miss';
+    const opts=['<option value="">— no folder —</option>',
+      ...subs.map(s=>`<option value="${esc(s.name)}" ${matched===s.name?'selected':''}>${esc(s.name)}</option>`)
+    ].join('');
+    return`<tr class="${rowClass}" data-vt="${esc(vt)}">
+      <td style="font-weight:600">${esc(vt)}</td>
+      <td><select class="match-folder-sel" data-vt="${esc(vt)}" onchange="updateMatch(this)">${opts}</select></td>
+      <td><span class="match-status" style="color:${statusColor}">${statusText}</span></td>
+    </tr>`;
+  }).join('');
+  g('match-tbody').innerHTML=rows;
+  STATE._matchMap=matchMap;
+  STATE._unmatchedFolders=unmatchedFolders;
+  g('match-modal').style.display='flex';
+}
+
+function updateMatch(sel){
+  const vt=sel.dataset.vt;
+  const val=sel.value;
+  STATE._matchMap[vt]=val;
+  const row=sel.closest('tr');
+  row.className=val?'match-row-ok':'match-row-miss';
+  row.querySelector('.match-status').textContent=val?'✓ Matched':'✗ No folder';
+  row.querySelector('.match-status').style.color=val?'var(--ok)':'var(--danger)';
+}
+
+function closeMatchModal(){
+  g('match-modal').style.display='none';
+  setPbar(0);
+}
+
+async function confirmMatching(){
+  g('match-modal').style.display='none';
+  const{combos,files,subs,subMap,checks}=STATE._pending;
+  const matchMap=STATE._matchMap;
+  // Build a resolved customMap from user selections
+  const resolvedMap={};
+  for(const[vt,folder]of Object.entries(matchMap)){
+    if(folder) resolvedMap[norm(vt)]=folder;
+  }
+  try{
+    log('Running analysis with confirmed matching…');setPbar(70);
+    const vtReports=buildReportsResolved(combos,files,subs,subMap,resolvedMap);
     const qa=runQA(files,checks);
     const{completed,partial}=getCompletedEpisodes(combos,vtReports);
     setPbar(100);
     const totalDel=vtReports.reduce((s,r)=>s+r.delivered,0);
     const totalMiss=vtReports.reduce((s,r)=>s+r.missing.length,0);
-    STATE={combos,files,subfolders:subs,vtReports,qa,completed,partial};
+    STATE={...STATE,combos,files,subfolders:subs,vtReports,qa,completed,partial};
     g('m-exp').textContent=combos.length;
     g('m-del').textContent=totalDel;
     setM('m-mis',totalMiss,totalMiss?'cd':'co');
@@ -448,12 +659,57 @@ async function run(){
     renderReport(vtReports,completed,partial);
     renderQA(qa);
     renderMatrix(combos,vtReports);
+    renderUnmatched(STATE._unmatchedFolders,files);
     const nc=vtReports.filter(r=>r.status==='complete').length;
-    const nf=vtReports.filter(r=>r.status==='notfound').length;
     log(`✓ Done — ${nc}/${vtReports.length} VTs complete, ${completed.length} eps fully delivered`);
-    setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${completed.length} completed episodes`);
-  }catch(err){log('ERROR: '+err.message);setStat('Error: '+err.message);console.error(err);}
-  btn.disabled=false;btn.textContent='▶  Run analysis';
+    setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${completed.length} completed eps`);
+    showTab('report',document.querySelector('.tab'));
+  }catch(err){log('ERROR: '+err.message);console.error(err);}
+}
+
+// buildReports using resolved match map (folder name per VT is pre-determined)
+function buildReportsResolved(combos,files,subs,subMap,resolvedMap){
+  const vtNames=[...new Set(combos.map(c=>c.vt))].sort();
+  const reports=[];
+  for(const vt of vtNames){
+    const vtC=combos.filter(c=>c.vt===vt);
+    // Use resolved map first, then auto-match as fallback
+    const folderName=resolvedMap[norm(vt)]||subs.find(s=>vtMatch(vt,s.name))?.name||null;
+    const folderUrl=folderName&&subMap[folderName]?subMap[folderName].url:null;
+    if(!folderName){
+      reports.push({vt,status:'notfound',folderName:null,folderUrl:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});
+      continue;
+    }
+    const inF=files.filter(f=>f.folder===folderName);
+    const deliveredList=[],missing=[];
+    for(const{ep}of vtC){
+      if(inF.some(f=>epMatch(f.stem,ep)))deliveredList.push(ep);
+      else missing.push(ep);
+    }
+    const pct=deliveredList.length/vtC.length;
+    const status=pct===1?'complete':missing.length===vtC.length?'missing':'partial';
+    reports.push({vt,status,folderName,folderUrl,total:vtC.length,delivered:deliveredList.length,missing,deliveredList});
+  }
+  const ord={notfound:0,missing:1,partial:2,complete:3};
+  reports.sort((a,b)=>ord[a.status]-ord[b.status]);
+  return reports;
+}
+
+function renderUnmatched(unmatchedFolders,files){
+  const tab=g('tab-unmatched');
+  if(!unmatchedFolders||!unmatchedFolders.length){tab.style.display='none';return;}
+  tab.style.display='';
+  tab.textContent=`⚠ Unmatched (${unmatchedFolders.length})`;
+  const tbody=g('body-unmatched');
+  tbody.innerHTML=unmatchedFolders.map((s,i)=>{
+    const fls=files.filter(f=>f.folder===s.name);
+    const url=`https://drive.google.com/drive/folders/${s.id}`;
+    return`<tr class="${i%2?'alt':''}">
+      <td><a href="${esc(url)}" target="_blank" style="color:var(--acc2);font-weight:600">${esc(s.name)}</a></td>
+      <td style="color:var(--muted)">${fls.length} file${fls.length!==1?'s':''}</td>
+      <td><span style="font-size:11px;color:var(--warn)">No matching VT in script</span></td>
+    </tr>`;
+  }).join('');
 }
 
 // ── Render report ─────────────────────────────────────────────
@@ -621,24 +877,59 @@ function setM(id,val,cls){const e=g(id);e.textContent=val;e.className='metric-va
 
 // ── Export ────────────────────────────────────────────────────
 function exportReport(){
-  const rows=[['VT','Status','Delivered','Total','%','Missing episodes','Folder URL']];
+  if(!STATE.vtReports.length){alert('Run the analysis first.');return;}
+  // Summary section
+  const rows=[
+    ['DELIVERY REPORT — ' + today()],
+    [],
+    ['SUMMARY'],
+    ['VT','Status','Delivered','Total','%','Missing episodes','Delivered episodes','Folder URL'],
+  ];
   for(const r of STATE.vtReports){
     const pct=r.total>0?Math.round(r.delivered/r.total*100)+'%':'—';
-    rows.push([r.vt,r.status,r.delivered,r.total,pct,
+    rows.push([
+      r.vt,
+      r.status==='complete'?'Complete':r.status==='partial'?'Incomplete':r.status==='missing'?'No deliveries':'No folder',
+      r.delivered,
+      r.total,
+      pct,
       r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', '),
-      r.folderUrl||'']);
+      r.deliveredList.map(e=>e.replace(/[^0-9]/g,'')).join(', '),
+      r.folderUrl||'',
+    ]);
+  }
+  // Detail section — one row per VT per episode
+  rows.push([],[],['DETAIL — one row per VT × Episode'],['VT','Episode','Status','Folder URL']);
+  const eps=[...new Set(STATE.combos.map(c=>c.ep))].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
+  for(const r of STATE.vtReports){
+    const vtEps=new Set(STATE.combos.filter(c=>c.vt===r.vt).map(c=>c.ep));
+    for(const ep of eps){
+      if(!vtEps.has(ep))continue;
+      const delivered=r.deliveredList.includes(ep);
+      const status=r.status==='notfound'?'No folder':delivered?'Delivered':'Missing';
+      rows.push([r.vt,ep.replace(/[^0-9]/g,''),status,r.folderUrl||'']);
+    }
+  }
+  // Completed episodes
+  if(STATE.completed&&STATE.completed.length){
+    rows.push([],[],['COMPLETED EPISODES (all VTs delivered)']);
+    rows.push([STATE.completed.map(e=>e.replace(/[^0-9]/g,'')).join(', ')]);
   }
   dlCSV(rows,`delivery_report_${today()}.csv`);
 }
 function exportCSV(){
+  if(!STATE.qa.length){alert('No QA issues to export.');return;}
   const rows=[['File','VT','Type','Severity','Detail','File URL','Folder URL'],...STATE.qa.map(q=>[q.file,q.folder,q.type,q.severity,q.detail,q.fileUrl,q.folderUrl||''])];
   dlCSV(rows,`qa_issues_${today()}.csv`);
 }
 function dlCSV(rows,fn){
-  const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-  a.download=fn;a.click();
+  a.href=url;a.download=fn;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},100);
 }
 </script>
 </body>
