@@ -562,19 +562,15 @@ function getCompletedEpisodes(combos,vtReports){
   const eps=[...new Set(combos.map(c=>c.ep))].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
   const missSet=new Set(vtReports.flatMap(r=>r.missing.map(ep=>r.vt+'|'+ep)));
   const nfSet=new Set(vtReports.filter(r=>r.status==='notfound').map(r=>r.vt));
-  const expSet=new Set(combos.map(c=>c.vt+'|'+c.ep));
-  const completed=[],partial=[];
+  const completed=[], almost=[];  // almost = missing exactly 1 VT
   for(const ep of eps){
     const vtForEp=combos.filter(c=>c.ep===ep).map(c=>c.vt);
-    const allDone=vtForEp.every(vt=>{
-      if(nfSet.has(vt))return false;
-      return!missSet.has(vt+'|'+ep);
-    });
-    const anyDone=vtForEp.some(vt=>!missSet.has(vt+'|'+ep)&&!nfSet.has(vt));
-    if(allDone)completed.push(ep);
-    else if(anyDone)partial.push(ep);
+    // Count VTs that have NOT delivered for this episode
+    const missingVTs=vtForEp.filter(vt=>nfSet.has(vt)||missSet.has(vt+'|'+ep));
+    if(missingVTs.length===0) completed.push(ep);
+    else if(missingVTs.length===1) almost.push({ep, missingVT: missingVTs[0]});
   }
-  return{completed,partial};
+  return{completed,almost};
 }
 
 // ── QA ────────────────────────────────────────────────────────
@@ -793,16 +789,16 @@ async function confirmMatching(){
       }).join(' | ')}`);
     });
     const qa=runQA(files,checks);
-    const{completed,partial}=getCompletedEpisodes(combos,vtReports);
+    const{completed,almost}=getCompletedEpisodes(combos,vtReports);
     setPbar(100);
     const totalDel=vtReports.reduce((s,r)=>s+r.delivered,0);
     const totalMiss=vtReports.reduce((s,r)=>s+r.missing.length,0);
-    STATE={...STATE,combos,files,subfolders:subs,vtReports,qa,completed,partial};
+    STATE={...STATE,combos,files,subfolders:subs,vtReports,qa,completed,almost};
     g('m-exp').textContent=combos.length;
     g('m-del').textContent=totalDel;
     setM('m-mis',totalMiss,totalMiss?'cd':'co');
     setM('m-qa',qa.length,qa.length?'cw':'co');
-    renderReport(vtReports,completed,partial);
+    renderReport(vtReports,completed,almost);
     renderQA(qa);
     renderMatrix(combos,vtReports);
     // assignedFolders = folders actually used in confirmed reports
@@ -869,7 +865,7 @@ function renderUnmatched(allSubs,files,assignedFolders){
 }
 
 // ── Render report ─────────────────────────────────────────────
-function renderReport(reports,completed,partial){
+function renderReport(reports,completed,almost){
   const wrap=g('report-wrap');
   if(!reports.length){wrap.innerHTML='<div class="empty"><span class="empty-icon">📋</span>No data</div>';return;}
   let html='';
@@ -883,11 +879,20 @@ function renderReport(reports,completed,partial){
   }
 
   // Completed episodes summary
-  if(completed.length||partial.length){
+  if(completed.length){
     html+=`<div class="completed-eps-bar">
       <div class="completed-eps-title">✓ Completed episodes — all VTs delivered (${completed.length})</div>
       <div class="completed-eps-grid">
         ${completed.map(ep=>`<span class="ep-done">${ep.replace(/[^0-9]/g,'')}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+  // Almost-done episodes (missing exactly 1 VT)
+  if(almost&&almost.length){
+    html+=`<div class="completed-eps-bar" style="border-color:rgba(245,166,35,.25);margin-top:8px">
+      <div class="completed-eps-title" style="color:var(--warn)">⚠ Missing 1 VT (${almost.length})</div>
+      <div class="completed-eps-grid">
+        ${almost.map(({ep,missingVT})=>`<span class="ep-partial" title="Missing: ${esc(missingVT)}">${ep.replace(/[^0-9]/g,'')} <span style="font-size:9px;opacity:.7">-${esc(missingVT.split(' ')[0])}</span></span>`).join('')}
       </div>
     </div>`;
   }
