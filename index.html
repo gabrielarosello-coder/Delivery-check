@@ -211,13 +211,42 @@ async function scanDrive(folofrId){
   return{subs,files};
 }
 async function fetchSheet(sid,sname){
-  const url=`https://docs.google.com/spreadsheets/d/${sid}/export?format=csv&sheet=${encodeURIComponent(sname)}`;
-  const r=await fetch(url);if(!r.ok)throw new Error(`Could not read the sheet (${r.status}). Is it shared publicly?`);
-  const rows=parseCSV(await r.text());const hdrs=rows[0].map(h=>h.trim().toUpperCase());
-  const ei=hdrs.indexOf('EPISODE'),vi=hdrs.indexOf('VT');
-  if(ei<0||vi<0)throw new Error(`EPISODE/VT columns not found. Columns: ${hdrs.join(', ')}`);
-  const seen=new Set(),out=[];
-  for(const row of rows.slice(1)){const ep=(row[ei]||'').trim(),vt=(row[vi]||'').trim();if(ep&&vt&&!seen.has(ep+'|'+vt)){seen.add(ep+'|'+vt);out.push({ep,vt});}}
+  // Try multiple endpoints — gviz works best for public sheets incl. Shared Drives
+  const endpoints = [
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}`,
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(sname)}`,
+    `https://docs.google.com/spreadsheets/d/${sid}/export?format=csv&sheet=${encodeURIComponent(sname)}&exportFormat=csv`,
+  ];
+  let text = null, lastErr = '';
+  for (const url of endpoints) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
+      const t = await r.text();
+      // Check it's actually CSV and not an HTML error page
+      if (t.trim().startsWith('<')) { lastErr = 'Got HTML instead of CSV — sheet may not be public'; continue; }
+      if (t.trim().length < 10) { lastErr = 'Empty response'; continue; }
+      text = t; break;
+    } catch(e) { lastErr = e.message; }
+  }
+  if (!text) throw new Error(`Could not read the sheet: ${lastErr}. Make sure it is shared as "Anyone with the link can view".`);
+
+  const rows = parseCSV(text);
+  if (!rows.length) throw new Error('Sheet appears empty.');
+
+  // Find EPISODE and VT columns (case-insensitive)
+  const hdrs = rows[0].map(h => h.trim().toUpperCase().replace(/[^A-Z0-9]/g,''));
+  const ei = hdrs.findIndex(h => h === 'EPISODE' || h === 'EP');
+  const vi = hdrs.findIndex(h => h === 'VT');
+  if (ei < 0 || vi < 0) {
+    throw new Error(`Could not find EPISODE/VT columns. Columns found: ${rows[0].join(', ')}`);
+  }
+  const seen = new Set(), out = [];
+  for (const row of rows.slice(1)) {
+    const ep = (row[ei]||'').trim(), vt = (row[vi]||'').trim();
+    if (ep && vt && !seen.has(ep+'|'+vt)) { seen.add(ep+'|'+vt); out.push({ep, vt}); }
+  }
+  if (!out.length) throw new Error('No EP/VT combinations found. Check the sheet name (tab) is correct.');
   return out;
 }
 function parseCSV(text){
