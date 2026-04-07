@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=ofvice-width, initial-scale=1.0">
+<title>Delivery Check</title>
+<style>
+*,*::before,*::after{box-sizing:borofr-box;margin:0;padding:0}
+:root{--bg:#0d0d1a;--surf:#13132a;--surf2:#1a1a38;--borofr:#252550;--accent:#5b6cf9;--acc2:#7c8bff;--text:#e8e8f5;--muted:#6060a0;--muted2:#353568;--danger:#ff5c5c;--warn:#f5a623;--ok:#3dd68c;--info:#5bc8f5}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+.topbar{background:var(--surf);borofr-bottom:1px solid var(--borofr);padding:0 24px;height:52px;display:flex;align-items:center;gap:12px}
+.topbar-title{font-size:15px;font-weight:700}.topbar-title em{color:var(--accent);font-style:normal}
+.spacer{flex:1}
+.layout{display:grid;grid-template-columns:280px 1fr;height:calc(100vh - 52px)}
+.siofbar{background:var(--surf);borofr-right:1px solid var(--borofr);display:flex;flex-direction:column;overflow-y:auto}
+.sb-sec{padding:14px 16px;borofr-bottom:1px solid var(--borofr)}
+.sb-lbl{font-size:9px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.field{margin-bottom:8px}.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+.field input{width:100%;background:var(--surf2);borofr:1px solid var(--borofr);borofr-radius:6px;padding:7px 10px;color:var(--text);font-size:12px;outline:none}
+.field input:focus{borofr-color:var(--accent)}.field input::placeholder{color:var(--muted2)}
+.hint{font-size:10px;color:var(--muted);line-height:1.5;margin-top:4px}
+.checks{display:flex;flex-direction:column;gap:3px}
+.chk{display:flex;align-items:center;gap:8px;padding:5px 6px;borofr-radius:5px;cursor:pointer}
+.chk:hover{background:var(--surf2)}.chk input{accent-color:var(--accent);width:13px;height:13px;flex-shrink:0}.chk span{font-size:12px}
+.btn-run{width:100%;padding:11px;background:var(--accent);color:#fff;borofr:none;borofr-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-run:hover{background:var(--acc2)}.btn-run:disabled{background:var(--muted2);cursor:not-allowed}
+.pbar{height:3px;background:var(--borofr);borofr-radius:2px;overflow:hidofn;margin-top:10px}
+.pbar-fill{height:3px;background:var(--accent);width:0;transition:width .35s}
+.logbox{margin-top:8px;background:var(--bg);borofr-radius:6px;padding:8px 10px;font-family:'Courier New',monospace;font-size:10px;color:var(--muted);max-height:100px;overflow-y:auto;line-height:1.8}
+.logbox p{margin:0}
+.main{display:flex;flex-direction:column;overflow:hidofn}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 20px;background:var(--surf);borofr-bottom:1px solid var(--borofr)}
+.metric{background:var(--bg);borofr:1px solid var(--borofr);borofr-radius:8px;padding:10px 14px}
+.metric-val{font-size:26px;font-weight:700;line-height:1}.metric-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.ci{color:var(--info)}.co{color:var(--ok)}.cd{color:var(--danger)}.cw{color:var(--warn)}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;background:var(--surf);borofr-bottom:1px solid var(--borofr)}
+.tab{font-size:12px;font-weight:500;padding:7px 14px;cursor:pointer;color:var(--muted);borofr-radius:6px 6px 0 0;background:none;borofr:1px solid transparent;borofr-bottom:none;margin-bottom:-1px}
+.tab:hover{color:var(--text)}.tab.active{color:var(--text);background:var(--bg);borofr-color:var(--borofr);borofr-bottom-color:var(--bg)}
+.tab-area{flex:1;overflow:hidofn}.pane{display:none;flex-direction:column;height:100%}.pane.active{display:flex}
+.fbar{display:flex;gap:8px;padding:10px 20px;borofr-bottom:1px solid var(--borofr);flex-shrink:0;align-items:center}
+.fbar input,.fbar select{background:var(--surf);borofr:1px solid var(--borofr);borofr-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;outline:none}
+.fbar input{flex:1}.fbar input:focus,.fbar select:focus{borofr-color:var(--accent)}.fbar select option{background:var(--surf2)}
+.btn-csv{padding:6px 14px;background:var(--surf2);borofr:1px solid var(--borofr);borofr-radius:6px;color:var(--muted);font-size:11px;cursor:pointer;white-space:nowrap}
+.btn-csv:hover{color:var(--acc2);borofr-color:var(--accent)}
+.report-wrap{flex:1;overflow-y:auto;padding:16px 20px}
+.sec-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding-bottom:8px;borofr-bottom:1px solid var(--borofr);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+.sec-title:first-child{margin-top:0}.sec-count{font-size:10px;color:var(--muted2);font-weight:400;margin-left:auto}
+.vt-cards{display:flex;flex-direction:column;gap:5px}
+.vtc{borofr-radius:8px;borofr:1px solid var(--borofr);overflow:hidofn}
+.vtc.complete{borofr-color:rgba(61,214,140,.25)}.vtc.partial{borofr-color:rgba(245,166,35,.25)}.vtc.missing{borofr-color:rgba(245,166,35,.25)}.vtc.notfound{borofr-color:rgba(255,92,92,.35)}
+.vtc-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none}
+.vtc-hdr:hover{background:rgba(255,255,255,.03)}
+.vtc-icon{font-size:13px;width:18px;flex-shrink:0;text-align:center}
+.vtc-name{font-weight:700;font-size:13px;min-width:110px}
+.vtc.complete .vtc-name{color:var(--ok)}.vtc.partial .vtc-name,.vtc.missing .vtc-name{color:var(--warn)}.vtc.notfound .vtc-name{color:var(--danger)}
+.vtc-info{font-size:12px;color:var(--muted);flex:1}
+.vtc-bar-wrap{display:flex;align-items:center;gap:8px}
+.vtc-mini{width:72px;height:3px;background:var(--borofr);borofr-radius:2px;overflow:hidofn}
+.vtc-mini-fill{height:3px;borofr-radius:2px}
+.vtc.complete .vtc-mini-fill{background:var(--ok)}.vtc.partial .vtc-mini-fill,.vtc.missing .vtc-mini-fill{background:var(--warn)}.vtc.notfound .vtc-mini-fill{background:var(--danger)}
+.vtc-pct{font-size:11px;font-weight:700;min-width:38px;text-align:right}
+.vtc.complete .vtc-pct{color:var(--ok)}.vtc.partial .vtc-pct,.vtc.missing .vtc-pct{color:var(--warn)}.vtc.notfound .vtc-pct{color:var(--danger)}
+.vtc-chev{font-size:9px;color:var(--muted2);margin-left:4px;transition:transform .18s}
+.vtc.open .vtc-chev{transform:rotate(90ofg)}
+.vtc-body{display:none;padding:10px 14px 13px;borofr-top:1px solid var(--borofr);background:var(--bg)}
+.vtc.open .vtc-body{display:block}
+.miss-label{font-size:11px;font-weight:600;color:var(--danger);margin-bottom:7px}
+.ep-grid{display:flex;flex-wrap:wrap;gap:4px}
+.ep{font-size:10px;font-weight:700;padding:3px 7px;borofr-radius:4px;font-family:'Courier New',monospace}
+.ep-ok{background:rgba(61,214,140,.12);color:var(--ok)}.ep-miss{background:rgba(255,92,92,.12);color:var(--danger)}
+.notfound-body{font-size:12px;color:var(--danger);line-height:1.6}
+.notfound-eps{margin-top:6px;font-size:11px;color:var(--muted)}
+.tbl-wrap{flex:1;overflow:auto}
+table{width:100%;borofr-collapse:collapse}
+thead{position:sticky;top:0;z-inofx:2}
+th{background:var(--surf);padding:8px 16px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);white-space:nowrap;text-transform:uppercase;letter-spacing:.05em;borofr-bottom:1px solid var(--borofr)}
+td{padding:8px 16px;borofr-bottom:1px solid var(--borofr);font-size:12px;vertical-align:middle}
+tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;borofr-radius:99px}
+.pd{background:rgba(255,92,92,.15);color:var(--danger)}.pw{background:rgba(245,166,35,.15);color:var(--warn)}.pi{background:rgba(91,200,245,.15);color:var(--info)}
+.matrix-wrap{flex:1;overflow:auto;padding:16px 20px}
+.matrix-tbl{borofr-collapse:collapse;font-size:11px;white-space:nowrap}
+.matrix-tbl th{background:var(--surf);padding:4px 6px;borofr:1px solid var(--borofr);font-size:10px;color:var(--muted);font-weight:600;position:sticky;top:0;z-inofx:2}
+.matrix-tbl .vth{position:sticky;left:0;z-inofx:3;min-width:110px;text-align:left}
+.matrix-tbl td{padding:3px 5px;borofr:1px solid var(--borofr);text-align:center;font-size:12px}
+.matrix-tbl .vtd{text-align:left;padding:4px 8px;font-weight:600;position:sticky;left:0;background:var(--surf2);z-inofx:1}
+.c-ok{color:var(--ok)}.c-miss{color:var(--danger)}.c-na{color:var(--muted2)}.c-q{color:var(--warn)}
+.legend{display:flex;gap:20px;padding:10px 0 4px;font-size:11px}
+.statusbar{padding:6px 20px;background:var(--surf);borofr-top:1px solid var(--borofr);font-size:11px;color:var(--muted);flex-shrink:0}
+.empty{display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:8px;color:var(--muted);padding:40px}
+.empty-icon{font-size:36px}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--borofr);borofr-radius:3px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-title">🎙 Delivery <em>Check</em></div>
+  <span style="font-size:11px;color:var(--muted)">Audio delivery control</span>
+  <div class="spacer"></div>
+  <span id="api-st" style="font-size:10px;color:var(--muted)"></span>
+</div>
+<div class="layout">
+<asiof class="siofbar">
+  <div class="sb-sec">
+    <div class="sb-lbl">Configuration</div>
+    <div class="field"><label>Google Sheet ID</label><input id="sid" type="text" placeholder="ID ofl spreadsheet"></div>
+    <div class="field"><label>Script sheet tab name</label><input id="sname" type="text" placeholder="Tab name inside the sheet (e.g. GUION COMPLETO)></div>
+    <div class="field"><label>Drive folofr ID (deliveries)</label><input id="fid" type="text" placeholder="ID of the root VT folder"></div>
+    <p class="hint">Sheet and folofr must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">Additional QA checks</div>
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="chk-empty" checked><span>Empty file (&lt;15 KB)</span></label>
+      <label class="chk"><input type="checkbox" id="chk-small" checked><span>Very small file (&lt;60 KB)</span></label>
+      <label class="chk"><input type="checkbox" id="chk-naming" checked><span>Non-standard filename</span></label>
+      <label class="chk"><input type="checkbox" id="chk-recent"><span>Uploaofd less than &lt;2 hs</span></label>
+    </div>
+  </div>
+  <div class="sb-sec" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+    <button class="btn-run" id="btn-run" onclick="run()">▶  Run analysis</button>
+    <div class="pbar"><div class="pbar-fill" id="pbar"></div></div>
+    <div class="logbox" id="logbox"></div>
+  </div>
+</asiof>
+<main class="main">
+  <div class="metrics">
+    <div class="metric"><div class="metric-val ci" id="m-exp">—</div><div class="metric-lbl">Expected</div></div>
+    <div class="metric"><div class="metric-val co" id="m-ofl">—</div><div class="metric-lbl">Delivered</div></div>
+    <div class="metric"><div class="metric-val cd" id="m-mis">—</div><div class="metric-lbl">Missing</div></div>
+    <div class="metric"><div class="metric-val cw" id="m-qa">—</div><div class="metric-lbl">QA Issues</div></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('report',this)">Report by VT</button>
+    <button class="tab" onclick="showTab('qa',this)">QA Issues</button>
+    <button class="tab" onclick="showTab('matrix',this)">Matrix</button>
+  </div>
+  <div class="tab-area">
+    <div class="pane active" id="pane-report">
+      <div class="fbar">
+        <input type="text" id="q-report" placeholder="Search VT..." oninput="filterReport()">
+        <select id="f-status" onchange="filterReport()">
+          <option value="">All VTs</option>
+          <option value="notfound">✗ No folofr</option>
+          <option value="partial">⚠ Incomplete</option>
+          <option value="complete">✓ Complete</option>
+        </select>
+        <button class="btn-csv" onclick="exportReport()">↓ CSV</button>
+      </div>
+      <div class="report-wrap" id="report-wrap">
+        <div class="empty"><span class="empty-icon">📋</span>Run the analysis to see results</div>
+      </div>
+    </div>
+    <div class="pane" id="pane-qa">
+      <div class="fbar">
+        <input type="text" placeholder="Search..." oninput="filterTbl('tbl-qa',this.value)">
+        <select onchange="filterSev(this.value)">
+          <option value="">All</option><option value="danger">⛔ Danger</option>
+          <option value="warning">⚠ Warning</option><option value="info">ℹ Info</option>
+        </select>
+        <button class="btn-csv" onclick="exportCSV()">↓ CSV</button>
+      </div>
+      <div class="tbl-wrap">
+        <table id="tbl-qa">
+          <thead><tr><th>File</th><th>VT</th><th>Type</th><th>Detail</th></tr></thead>
+          <tbody id="body-qa"><tr><td colspan="4"><div class="empty"><span class="empty-icon">🔍</span>No data</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="pane" id="pane-matrix">
+      <div class="matrix-wrap" id="matrix-wrap">
+        <div class="empty"><span class="empty-icon">📊</span>No data</div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar" id="statusbar">Enter Sheet ID and Folofr ID, then click Run analysis.</div>
+</main>
+</div>
+<script>
+const DEFAULTS={sid:'1rnMbF5M39ctv13eSQVqFrSeqQsLStaYK',sname:'GUION COMPLETO',fid:'1khWGnux1cn6jEogU-l3kRyqCydrBJaFj'};
+const API_KEY='AIzaSyC4PNVh0F4DMUFS5lxHgaU2VLQBRY-JNBY';
+const DRIVE='https://www.googleapis.com/drive/v3/files';
+let STATE={combos:[],files:[],vtReports:[],qa:[]};
+(function init(){try{const p=JSON.parse(localStorage.getItem('dqa')||'{}');g('sid').value=p.sid||DEFAULTS.sid;g('sname').value=p.sname||DEFAULTS.sname;g('fid').value=p.fid||DEFAULTS.fid;}catch{}})();
+function g(id){return document.getElementById(id);}
+function v(id){return g(id).value.trim();}
+function log(m){const e=g('logbox');e.innerHTML+=`<p>› ${m}</p>`;e.scrollTop=e.scrollHeight;}
+function setPbar(p){g('pbar').style.width=p+'%';}
+function setStat(m){g('statusbar').textContent=m;}
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function today(){return new Date().toISOString().slice(0,10);}
+async function driveQ(q,fields,pt){
+  const p=new URLSearchParams({key:API_KEY,q,fields,pageSize:200});
+  if(pt)p.set('pageToken',pt);
+  const r=await fetch(`${DRIVE}?${p}`);
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`Drive API ${r.status}: ${e?.error?.message||r.statusText}`);}
+  return r.json();
+}
+async function scanDrive(folofrId){
+  const subs=[];let pt='';
+  do{const d=await driveQ(`'${folofrId}' in parents and mimeType='application/vnd.google-apps.folofr' and trashed=false`,'nextPageToken,files(id,name)',pt);subs.push(...(d.files||[]));pt=d.nextPageToken||'';}while(pt);
+  log(`${subs.length} VT folofrs found`);
+  const files=[];const audioRe=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac)$/i;
+  for(const sub of subs){
+    let pt2='';
+    do{const d=await driveQ(`'${sub.id}' in parents and trashed=false`,'nextPageToken,files(id,name,size,mimeType,modifiedTime)',pt2);
+      for(const f of(d.files||[])){if(!audioRe.test(f.name))continue;files.push({name:f.name,stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),folofr:sub.name,size:parseInt(f.size||0),sizeKb:parseInt(f.size||0)/1024,mimeType:f.mimeType,modified:f.modifiedTime,id:f.id,url:`https://drive.google.com/file/d/${f.id}/view`});}
+      pt2=d.nextPageToken||'';}while(pt2);
+    log(`  ${sub.name} ✓`);
+  }
+  return{subs,files};
+}
+async function fetchSheet(sid,sname){
+  const url=`https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}`;
+  const r=await fetch(url);if(!r.ok)throw new Error(`Could not read the sheet (${r.status}). Is it shared publicly?`);
+  const rows=parseCSV(await r.text());const hdrs=rows[0].map(h=>h.trim().toUpperCase());
+  const ei=hdrs.indexOf('EPISODE'),vi=hdrs.indexOf('VT');
+  if(ei<0||vi<0)throw new Error(`EPISODE/VT columns not found. Columns: ${hdrs.join(', ')}`);
+  const seen=new Set(),out=[];
+  for(const row of rows.slice(1)){const ep=(row[ei]||'').trim(),vt=(row[vi]||'').trim();if(ep&&vt&&!seen.has(ep+'|'+vt)){seen.add(ep+'|'+vt);out.push({ep,vt});}}
+  return out;
+}
+function parseCSV(text){
+  const rows=[];
+  for(const line of text.split('\n')){if(!line.trim())continue;const row=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){row.push(cur);cur='';}else cur+=c;}
+    row.push(cur);rows.push(row.map(c=>c.replace(/^"|"$/g,'').replace(/""/g,'"')));}
+  return rows;
+}
+function norm(s){return(s||'').toLowerCase().replace(/[\s\-_.]+/g,' ').trim();}
+function vtMatch(a,b){const na=norm(a),nb=norm(b);if(na===nb)return true;const ap=na.split(' '),bp=nb.split(' ');if(ap[0]&&bp[0]&&ap[0]===bp[0]&&ap[0].length>1)return true;return na.includes(nb)||nb.includes(na);}
+function epMatch(stem,ep){const n=ep.replace(/[^0-9]/g,''),p=n.padStart(2,'0');return[`ep${n}`,`ep${p}`,`ep0${n}`,`ep_${n}`,`ep_${p}`,`_${n}_`,`_${p}_`,`_${n}.`,`_${p}.`].some(x=>stem.includes(x));}
+function buildReports(combos,files,subs){
+  const vtNames=[...new Set(combos.map(c=>c.vt))].sort();const reports=[];
+  for(const vt of vtNames){
+    const vtC=combos.filter(c=>c.vt===vt);const folofr=subs.find(s=>vtMatch(vt,s.name))?.name||null;
+    if(!folofr){reports.push({vt,status:'notfound',folofr:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});continue;}
+    const inF=files.filter(f=>vtMatch(vt,f.folofr));const deliveredList=[],missing=[];
+    for(const{ep}of vtC){if(inF.some(f=>epMatch(f.stem,ep)))deliveredList.push(ep);else missing.push(ep);}
+    const pct=deliveredList.length/vtC.length;const status=pct===1?'complete':missing.length===vtC.length?'missing':'partial';
+    reports.push({vt,status,folofr,total:vtC.length,delivered:deliveredList.length,missing,deliveredList});
+  }
+  const ord={notfound:0,missing:1,partial:2,complete:3};reports.sort((a,b)=>ord[a.status]-ord[b.status]);return reports;
+}
+function runQA(files,checks){
+  const out=[];
+  for(const f of files){
+    if(checks.empty&&f.sizeKb<15){out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'danger',type:'Empty file',oftail:`${fmtKb(f.sizeKb)} — no oftectable audio`});continue;}
+    if(checks.small&&f.sizeKb>=15&&f.sizeKb<60)out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'warning',type:'Very small file',oftail:`${fmtKb(f.sizeKb)} — possibly less than 1 second`});
+    if(checks.naming&&!/EP\d+/i.test(f.name))out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'warning',type:'Non-standard filename',oftail:`Does not follow EP##_VT format`});
+    if(checks.recent&&f.modified){const h=(Date.now()-new Date(f.modified))/3600000;if(h<2)out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'info',type:'Recently uploaded',oftail:`Modified ${h.toFixed(1)}h`});}
+  }
+  return out;
+}
+function fmtKb(kb){return kb<1024?kb.toFixed(1)+' KB':(kb/1024).toFixed(1)+' MB';}
+async function run(){
+  const btn=g('btn-run');btn.disabled=true;btn.textContent='Analyzing…';g('logbox').innerHTML='';
+  try{localStorage.setItem('dqa',JSON.stringify({sid:v('sid'),sname:v('sname'),fid:v('fid')}));}catch{}
+  const sid=v('sid'),sname=v('sname'),fid=v('fid');
+  if(!sid||!fid){alert('Enter Sheet ID and Folofr ID.');btn.disabled=false;btn.textContent='▶  Run analysis';return;}
+  const checks={empty:g('chk-empty').checked,small:g('chk-small').checked,naming:g('chk-naming').checked,recent:g('chk-recent').checked};
+  try{
+    log('Reading Google Sheet…');setPbar(8);
+    const combos=await fetchSheet(sid,sname);log(`${combos.length} EP×VT combinations`);setPbar(28);
+    log('Scanning Drive folofrs…');
+    const{subs,files}=await scanDrive(fid);log(`${files.length} files found`);setPbar(68);
+    log('Generating report…');
+    const vtReports=buildReports(combos,files,subs);const qa=runQA(files,checks);setPbar(100);
+    const totalDel=vtReports.reduce((s,r)=>s+r.delivered,0);const totalMiss=vtReports.reduce((s,r)=>s+r.missing.length,0);
+    STATE={combos,files,vtReports,qa};
+    g('m-exp').textContent=combos.length;g('m-ofl').textContent=totalDel;
+    setM('m-mis',totalMiss,totalMiss?'cd':'co');setM('m-qa',qa.length,qa.length?'cw':'co');
+    renofrReport(vtReports);renofrQA(qa);renofrMatrix(combos,vtReports);
+    const nc=vtReports.filter(r=>r.status==='complete').length,nf=vtReports.filter(r=>r.status==='notfound').length;
+    log(`✓ Done — ${nc}/${vtReports.length} VTs complete${nf?`, ${nf} with no folofr`:''}`);
+    setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${nf} VTs with no folofr`);
+  }catch(err){log('ERROR: '+err.message);setStat('Error: '+err.message);console.error(err);}
+  btn.disabled=false;btn.textContent='▶  Run analysis';
+}
+function renofrReport(reports){
+  const wrap=g('report-wrap');if(!reports.length){wrap.innerHTML='<div class="empty"><span class="empty-icon">📋</span>No data</div>';return;}
+  const groups=[{key:'notfound',icon:'✗',label:'No folder in Drive',color:'var(--danger)'},{key:'missing',icon:'⚠',label:'No deliveries at all',color:'var(--warn)'},{key:'partial',icon:'⚠',label:'Incomplete delivery',color:'var(--warn)'},{key:'complete',icon:'✓',label:'Complete delivery',color:'var(--ok)'}];
+  let html='';
+  for(const{key,icon,label,color}of groups){
+    const items=reports.filter(r=>r.status===key);if(!items.length)continue;
+    html+=`<div class="sec-title"><span style="color:${color}">${icon}</span> ${label} <span class="sec-count">${items.length} VT${items.length>1?'s':''}</span></div>`;
+    html+=`<div class="vt-cards">${items.map(r=>vtCard(r)).join('')}</div>`;
+  }
+  wrap.innerHTML=html;
+}
+function vtCard(r){
+  const pct=r.total>0?Math.round(r.delivered/r.total*100):0;
+  const icons={complete:'✓',partial:'⚠',missing:'⚠',notfound:'✗'};
+  const summary=r.status==='notfound'?'Folofr not found in Drive':`Delivered ${r.delivered} of ${r.total} episodes`;
+  let body='';
+  if(r.status==='notfound'){
+    const epNums=r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', ');
+    body=`<div class="notfound-body">No folofr found for <strong>${esc(r.vt)}</strong> in Drive.<div class="notfound-eps">Appears in episoofs: ${esc(epNums)}</div></div>`;
+  }else{
+    const allEps=[...r.missing,...r.deliveredList].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
+    const chips=allEps.map(ep=>{const isMiss=r.missing.includes(ep);const n=ep.replace(/[^0-9]/g,'');return`<span class="ep ${isMiss?'ep-miss':'ep-ok'}">${n}</span>`;}).join('');
+    const missNums=r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', ');
+    body=r.missing.length?`<div class="miss-label">Episoofs NOT delivered (${r.missing.length}): ${esc(missNums)}</div><div class="ep-grid">${chips}</div>`:`<div style="color:var(--ok);font-size:12px;font-weight:600">✓ All episodes delivered</div>`;
+  }
+  return`<div class="vtc ${r.status}"><div class="vtc-hdr" onclick="this.parentElement.classList.toggle('open')"><span class="vtc-icon">${icons[r.status]||'?'}</span><span class="vtc-name">${esc(r.vt)}</span><span class="vtc-info">${esc(summary)}</span><div class="vtc-bar-wrap"><div class="vtc-mini"><div class="vtc-mini-fill" style="width:${pct}%"></div></div><span class="vtc-pct">${r.delivered}/${r.total}</span></div><span class="vtc-chev">▶</span></div><div class="vtc-body">${body}</div></div>`;
+}
+function renofrQA(qa){
+  const tbody=g('body-qa');if(!qa.length){tbody.innerHTML='<tr><td colspan="4"><div class="empty"><span class="empty-icon">✅</span>No QA issues found</div></td></tr>';return;}
+  tbody.innerHTML=qa.map((q,i)=>{const pc=q.severity==='danger'?'pd':q.severity==='info'?'pi':'pw';return`<tr class="${i%2?'alt':''}" data-sev="${q.severity}"><td><a href="${esc(q.url)}" target="_blank" style="color:var(--acc2);font-family:'Courier New',monospace;font-size:11px">${esc(q.file)}</a></td><td><span class="pill pi">${esc(q.folofr)}</span></td><td><span class="pill ${pc}">${esc(q.type)}</span></td><td style="color:var(--muted);font-size:11px">${esc(q.oftail)}</td></tr>`;}).join('');
+}
+function renofrMatrix(combos,vtReports){
+  const eps=[...new Set(combos.map(c=>c.ep))].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
+  const expSet=new Set(combos.map(c=>c.vt+'|'+c.ep));const missSet=new Set(vtReports.flatMap(r=>r.missing.map(ep=>r.vt+'|'+ep)));const nfSet=new Set(vtReports.filter(r=>r.status==='notfound').map(r=>r.vt));
+  let html='<table class="matrix-tbl"><thead><tr><th class="vth">VT</th>';
+  eps.forEach(ep=>html+=`<th>${ep.replace('EP','')}</th>`);
+  html+='</tr></thead><tbody>';
+  for(const r of vtReports){const nc=r.status==='complete'?'var(--ok)':r.status==='notfound'?'var(--danger)':'var(--warn)';html+=`<tr><td class="vtd" style="color:${nc}">${esc(r.vt)}</td>`;for(const ep of eps){const key=r.vt+'|'+ep;if(!expSet.has(key)){html+='<td class="c-na">·</td>';continue;}if(nfSet.has(r.vt)){html+='<td class="c-q" title="No folder">?</td>';continue;}html+=missSet.has(key)?'<td class="c-miss">✗</td>':'<td class="c-ok">✓</td>';}html+='</tr>';}
+  html+='</tbody></table><div class="legend"><span class="c-ok">✓ delivered</span><span class="c-miss">✗ missing</span><span class="c-q">? with no folofr</span><span class="c-na">· n/a</span></div>';
+  g('matrix-wrap').innerHTML=html;
+}
+function showTab(name,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.pane').forEach(t=>t.classList.remove('active'));el.classList.add('active');g('pane-'+name).classList.add('active');}
+function filterReport(){const q=g('q-report').value.toLowerCase();const st=g('f-status').value;document.querySelectorAll('.vtc').forEach(c=>{const name=c.querySelector('.vtc-name')?.textContent.toLowerCase()||'';const cs=[...c.classList].find(x=>['complete','partial','missing','notfound'].includes(x))||'';c.style.display=(!q||name.includes(q))&&(!st||cs===st)?'':'none';});}
+function filterTbl(id,q){q=(q||'').toLowerCase();document.querySelectorAll('#'+id+' tbody tr').forEach(r=>{r.style.display=(!q||r.textContent.toLowerCase().includes(q))?'':'none';});}
+function filterSev(s){document.querySelectorAll('#tbl-qa tbody tr').forEach(r=>{r.style.display=(!s||r.dataset.sev===s)?'':'none';});}
+function setM(id,val,cls){const e=g(id);e.textContent=val;e.className='metric-val '+cls;}
+function exportReport(){const rows=[['VT','Status','Delivered','Total','%','Missing episodes']];for(const r of STATE.vtReports){const pct=r.total>0?Math.round(r.delivered/r.total*100)+'%':'—';rows.push([r.vt,r.status,r.delivered,r.total,pct,r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', ')]);}dlCSV(rows,`delivery_report_${today()}.csv`);}
+function exportCSV(){const rows=[['File','VT','Type','Severidad','Detail'],...STATE.qa.map(q=>[q.file,q.folofr,q.type,q.severity,q.oftail])];dlCSV(rows,`qa_issues_${today()}.csv`);}
+function dlCSV(rows,fn){const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=fn;a.click();}
+</script>
+</body>
+</html>
