@@ -105,8 +105,8 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <div class="sb-lbl">Configuration</div>
     <div class="field"><label>Google Sheet ID</label><input id="sid" type="text" placeholder="ID ofl spreadsheet"></div>
     <div class="field"><label>Script sheet tab name</label><input id="sname" type="text" placeholder="Tab name inside the sheet (e.g. GUION COMPLETO)></div>
-    <div class="field"><label>Drive folofr ID (deliveries)</label><input id="fid" type="text" placeholder="Folder ID or full Google Drive link"></div>
-    <p class="hint">Sheet and folofr must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
+    <div class="field"><label>Drive folder ID (deliveries)</label><input id="fid" type="text" placeholder="Folder ID or full Google Drive link"></div>
+    <p class="hint">Sheet and folder must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
   </div>
   <div class="sb-sec">
     <div class="sb-lbl">Additional QA checks</div>
@@ -200,21 +200,21 @@ function setStat(m){g('statusbar').textContent=m;}
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 function today(){return new Date().toISOString().slice(0,10);}
 async function driveQ(q,fields,pt){
-  const p=new URLSearchParams({key:API_KEY,q,fields,pageSize:200,supportsAllDrives:'true',includeItemsFromAllDrives:'true',corpora:'allDrives'});
+  const p=new URLSearchParams({key:API_KEY,q,fields,pageSize:200,supportsAllDrives:'true',includeItemsFromAllDrives:'true'});
   if(pt)p.set('pageToken',pt);
   const r=await fetch(`${DRIVE}?${p}`);
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`Drive API ${r.status}: ${e?.error?.message||r.statusText}`);}
   return r.json();
 }
-async function scanDrive(folofrId){
+async function scanDrive(folderId){
   const subs=[];let pt='';
-  do{const d=await driveQ(`'${folofrId}' in parents and mimeType='application/vnd.google-apps.folofr' and trashed=false`,'nextPageToken,files(id,name)',pt);subs.push(...(d.files||[]));pt=d.nextPageToken||'';}while(pt);
-  log(`${subs.length} VT folofrs found`);
+  do{const d=await driveQ(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,'nextPageToken,files(id,name)',pt);subs.push(...(d.files||[]));pt=d.nextPageToken||'';}while(pt);
+  log(`${subs.length} VT folders found`);
   const files=[];const audioRe=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac)$/i;
   for(const sub of subs){
     let pt2='';
     do{const d=await driveQ(`'${sub.id}' in parents and trashed=false`,'nextPageToken,files(id,name,size,mimeType,modifiedTime)',pt2);
-      for(const f of(d.files||[])){if(!audioRe.test(f.name))continue;files.push({name:f.name,stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),folofr:sub.name,size:parseInt(f.size||0),sizeKb:parseInt(f.size||0)/1024,mimeType:f.mimeType,modified:f.modifiedTime,id:f.id,url:`https://drive.google.com/file/d/${f.id}/view`});}
+      for(const f of(d.files||[])){if(!audioRe.test(f.name))continue;files.push({name:f.name,stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),folder:sub.name,size:parseInt(f.size||0),sizeKb:parseInt(f.size||0)/1024,mimeType:f.mimeType,modified:f.modifiedTime,id:f.id,url:`https://drive.google.com/file/d/${f.id}/view`});}
       pt2=d.nextPageToken||'';}while(pt2);
     log(`  ${sub.name} ✓`);
   }
@@ -272,22 +272,22 @@ function epMatch(stem,ep){const n=ep.replace(/[^0-9]/g,''),p=n.padStart(2,'0');r
 function buildReports(combos,files,subs){
   const vtNames=[...new Set(combos.map(c=>c.vt))].sort();const reports=[];
   for(const vt of vtNames){
-    const vtC=combos.filter(c=>c.vt===vt);const folofr=subs.find(s=>vtMatch(vt,s.name))?.name||null;
-    if(!folofr){reports.push({vt,status:'notfound',folofr:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});continue;}
-    const inF=files.filter(f=>vtMatch(vt,f.folofr));const deliveredList=[],missing=[];
+    const vtC=combos.filter(c=>c.vt===vt);const folder=subs.find(s=>vtMatch(vt,s.name))?.name||null;
+    if(!folder){reports.push({vt,status:'notfound',folder:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});continue;}
+    const inF=files.filter(f=>vtMatch(vt,f.folder));const deliveredList=[],missing=[];
     for(const{ep}of vtC){if(inF.some(f=>epMatch(f.stem,ep)))deliveredList.push(ep);else missing.push(ep);}
     const pct=deliveredList.length/vtC.length;const status=pct===1?'complete':missing.length===vtC.length?'missing':'partial';
-    reports.push({vt,status,folofr,total:vtC.length,delivered:deliveredList.length,missing,deliveredList});
+    reports.push({vt,status,folder,total:vtC.length,delivered:deliveredList.length,missing,deliveredList});
   }
   const ord={notfound:0,missing:1,partial:2,complete:3};reports.sort((a,b)=>ord[a.status]-ord[b.status]);return reports;
 }
 function runQA(files,checks){
   const out=[];
   for(const f of files){
-    if(checks.empty&&f.sizeKb<15){out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'danger',type:'Empty file',oftail:`${fmtKb(f.sizeKb)} — no oftectable audio`});continue;}
-    if(checks.small&&f.sizeKb>=15&&f.sizeKb<60)out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'warning',type:'Very small file',oftail:`${fmtKb(f.sizeKb)} — possibly less than 1 second`});
-    if(checks.naming&&!/EP\d+/i.test(f.name))out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'warning',type:'Non-standard filename',oftail:`Does not follow EP##_VT format`});
-    if(checks.recent&&f.modified){const h=(Date.now()-new Date(f.modified))/3600000;if(h<2)out.push({file:f.name,folofr:f.folofr,url:f.url,severity:'info',type:'Recently uploaded',oftail:`Modified ${h.toFixed(1)}h`});}
+    if(checks.empty&&f.sizeKb<15){out.push({file:f.name,folder:f.folder,url:f.url,severity:'danger',type:'Empty file',detail:`${fmtKb(f.sizeKb)} — no detectable audio`});continue;}
+    if(checks.small&&f.sizeKb>=15&&f.sizeKb<60)out.push({file:f.name,folder:f.folder,url:f.url,severity:'warning',type:'Very small file',detail:`${fmtKb(f.sizeKb)} — possibly less than 1 second`});
+    if(checks.naming&&!/EP\d+/i.test(f.name))out.push({file:f.name,folder:f.folder,url:f.url,severity:'warning',type:'Non-standard filename',detail:`Does not follow EP##_VT format`});
+    if(checks.recent&&f.modified){const h=(Date.now()-new Date(f.modified))/3600000;if(h<2)out.push({file:f.name,folder:f.folder,url:f.url,severity:'info',type:'Recently uploaded',detail:`Modified ${h.toFixed(1)}h`});}
   }
   return out;
 }
@@ -301,7 +301,7 @@ async function run(){
   try{
     log('Reading Google Sheet…');setPbar(8);
     const combos=await fetchSheet(sid,sname);log(`${combos.length} EP×VT combinations`);setPbar(28);
-    log('Scanning Drive folofrs…');
+    log('Scanning Drive folders…');
     const{subs,files}=await scanDrive(fid);log(`${files.length} files found`);setPbar(68);
     log('Generating report…');
     const vtReports=buildReports(combos,files,subs);const qa=runQA(files,checks);setPbar(100);
@@ -311,8 +311,8 @@ async function run(){
     setM('m-mis',totalMiss,totalMiss?'cd':'co');setM('m-qa',qa.length,qa.length?'cw':'co');
     renofrReport(vtReports);renofrQA(qa);renofrMatrix(combos,vtReports);
     const nc=vtReports.filter(r=>r.status==='complete').length,nf=vtReports.filter(r=>r.status==='notfound').length;
-    log(`✓ Done — ${nc}/${vtReports.length} VTs complete${nf?`, ${nf} with no folofr`:''}`);
-    setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${nf} VTs with no folofr`);
+    log(`✓ Done — ${nc}/${vtReports.length} VTs complete${nf?`, ${nf} with no folder`:''}`);
+    setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${nf} VTs with no folder`);
   }catch(err){log('ERROR: '+err.message);setStat('Error: '+err.message);console.error(err);}
   btn.disabled=false;btn.textContent='▶  Run analysis';
 }
@@ -345,7 +345,7 @@ function vtCard(r){
 }
 function renofrQA(qa){
   const tbody=g('body-qa');if(!qa.length){tbody.innerHTML='<tr><td colspan="4"><div class="empty"><span class="empty-icon">✅</span>No QA issues found</div></td></tr>';return;}
-  tbody.innerHTML=qa.map((q,i)=>{const pc=q.severity==='danger'?'pd':q.severity==='info'?'pi':'pw';return`<tr class="${i%2?'alt':''}" data-sev="${q.severity}"><td><a href="${esc(q.url)}" target="_blank" style="color:var(--acc2);font-family:'Courier New',monospace;font-size:11px">${esc(q.file)}</a></td><td><span class="pill pi">${esc(q.folofr)}</span></td><td><span class="pill ${pc}">${esc(q.type)}</span></td><td style="color:var(--muted);font-size:11px">${esc(q.oftail)}</td></tr>`;}).join('');
+  tbody.innerHTML=qa.map((q,i)=>{const pc=q.severity==='danger'?'pd':q.severity==='info'?'pi':'pw';return`<tr class="${i%2?'alt':''}" data-sev="${q.severity}"><td><a href="${esc(q.url)}" target="_blank" style="color:var(--acc2);font-family:'Courier New',monospace;font-size:11px">${esc(q.file)}</a></td><td><span class="pill pi">${esc(q.folder)}</span></td><td><span class="pill ${pc}">${esc(q.type)}</span></td><td style="color:var(--muted);font-size:11px">${esc(q.detail)}</td></tr>`;}).join('');
 }
 function renofrMatrix(combos,vtReports){
   const eps=[...new Set(combos.map(c=>c.ep))].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
@@ -354,7 +354,7 @@ function renofrMatrix(combos,vtReports){
   eps.forEach(ep=>html+=`<th>${ep.replace('EP','')}</th>`);
   html+='</tr></thead><tbody>';
   for(const r of vtReports){const nc=r.status==='complete'?'var(--ok)':r.status==='notfound'?'var(--danger)':'var(--warn)';html+=`<tr><td class="vtd" style="color:${nc}">${esc(r.vt)}</td>`;for(const ep of eps){const key=r.vt+'|'+ep;if(!expSet.has(key)){html+='<td class="c-na">·</td>';continue;}if(nfSet.has(r.vt)){html+='<td class="c-q" title="No folder">?</td>';continue;}html+=missSet.has(key)?'<td class="c-miss">✗</td>':'<td class="c-ok">✓</td>';}html+='</tr>';}
-  html+='</tbody></table><div class="legend"><span class="c-ok">✓ delivered</span><span class="c-miss">✗ missing</span><span class="c-q">? with no folofr</span><span class="c-na">· n/a</span></div>';
+  html+='</tbody></table><div class="legend"><span class="c-ok">✓ delivered</span><span class="c-miss">✗ missing</span><span class="c-q">? with no folder</span><span class="c-na">· n/a</span></div>';
   g('matrix-wrap').innerHTML=html;
 }
 function showTab(name,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.pane').forEach(t=>t.classList.remove('active'));el.classList.add('active');g('pane-'+name).classList.add('active');}
@@ -363,7 +363,7 @@ function filterTbl(id,q){q=(q||'').toLowerCase();document.querySelectorAll('#'+i
 function filterSev(s){document.querySelectorAll('#tbl-qa tbody tr').forEach(r=>{r.style.display=(!s||r.dataset.sev===s)?'':'none';});}
 function setM(id,val,cls){const e=g(id);e.textContent=val;e.className='metric-val '+cls;}
 function exportReport(){const rows=[['VT','Status','Delivered','Total','%','Missing episodes']];for(const r of STATE.vtReports){const pct=r.total>0?Math.round(r.delivered/r.total*100)+'%':'—';rows.push([r.vt,r.status,r.delivered,r.total,pct,r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', ')]);}dlCSV(rows,`delivery_report_${today()}.csv`);}
-function exportCSV(){const rows=[['File','VT','Type','Severidad','Detail'],...STATE.qa.map(q=>[q.file,q.folofr,q.type,q.severity,q.oftail])];dlCSV(rows,`qa_issues_${today()}.csv`);}
+function exportCSV(){const rows=[['File','VT','Type','Severidad','Detail'],...STATE.qa.map(q=>[q.file,q.folder,q.type,q.severity,q.detail])];dlCSV(rows,`qa_issues_${today()}.csv`);}
 function dlCSV(rows,fn){const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=fn;a.click();}
 </script>
 </body>
