@@ -151,7 +151,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
 <body>
 <div class="topbar">
   <div class="topbar-title">🎙 Delivery <em>Check</em></div>
-  <span style="font-size:11px;color:var(--muted)">Audio delivery control</span>
+  <span id="show-name" style="font-size:12px;color:var(--acc2);font-weight:600;margin-left:6px"></span>
   <div class="spacer"></div>
 </div>
 <div class="layout">
@@ -161,7 +161,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <div class="field"><label>Google Sheet ID or link</label><input id="sid" type="text" placeholder="Sheet ID or full Google Sheets URL"></div>
     <div class="field"><label>Script sheet tab name</label><input id="sname" type="text" placeholder="Exact tab name (e.g. GUION COMPLETO)"></div>
     <div class="field"><label>Drive deliveries folder</label><input id="fid" type="text" placeholder="Folder ID or full Google Drive link"></div>
-    <p class="hint">Sheet and folder must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
+    <p class="hint">Sheet and folder must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong>. If the sheet has active filters, <strong style="color:var(--warn)">remove or disable them</strong> before running — filters hide rows from the analysis.</p>
   </div>
   <div class="sb-sec">
     <div class="sb-lbl">Name mapping <span style="color:var(--muted2);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
@@ -351,18 +351,22 @@ async function scanDrive(folderId){
   log(`${subs.length} VT folders found`);
   const files=[];
   const audioRe=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac)$/i;
+  const zipRe=/\.zip$/i;
+  const anyAudioOrZip=/\.(wav|mp3|aif|aiff|flac|ogg|m4a|wma|aac|zip)$/i;
   for(const sub of subs){
     let pt2='';
     do{
       const d=await driveQ(`'${sub.id}' in parents and trashed=false`,'nextPageToken,files(id,name,size,mimeType,modifiedTime)',pt2);
       for(const f of(d.files||[])){
-        if(!audioRe.test(f.name))continue;
+        if(!anyAudioOrZip.test(f.name))continue;
+        const isZip=zipRe.test(f.name);
+        const isNonWav=audioRe.test(f.name)&&!/\.wav$/i.test(f.name);
         files.push({
           name:f.name,stem:f.name.replace(/\.[^.]+$/,'').toLowerCase(),
           folder:sub.name,folderId:sub.id,
           size:parseInt(f.size||0),sizeKb:parseInt(f.size||0)/1024,
           mimeType:f.mimeType,modified:f.modifiedTime,
-          id:f.id,
+          id:f.id,isZip,isNonWav,
           url:`https://drive.google.com/file/d/${f.id}/view`,
           folderUrl:`https://drive.google.com/drive/folders/${sub.id}`,
         });
@@ -378,13 +382,37 @@ async function scanDrive(folderId){
 }
 
 // ── Sheet ─────────────────────────────────────────────────────
+async function fetchSheetTitle(sid){
+  // Fetch the spreadsheet title from the og:title meta tag
+  try{
+    const url=`https://docs.google.com/spreadsheets/d/${sid}/edit`;
+    const r=await fetch(url);
+    if(!r.ok) return null;
+    const html=await r.text();
+    const m=html.match(/<title[^>]*>([^<]+)<\/title>/i)||html.match(/og:title[^>]+content="([^"]+)"/i);
+    if(m){
+      // Clean up: remove " - Google Sheets" suffix and file extension
+      return m[1].replace(/\s*[-–]\s*Google Sheets.*$/i,'').replace(/\.xlsx$/i,'').trim();
+    }
+  }catch{}
+  return null;
+}
+
 async function fetchSheet(sid,sname){
   // range=A:Z forces reading ALL rows ignoring any active filters
-  // tq=select * also bypasses filters in gviz endpoint
+  // Multiple endpoints to handle filters, shared drives, etc.
+  // The export endpoint ignores filters completely — most reliable
+  // gviz with tq=select * also bypasses filters
+  const encName=encodeURIComponent(sname);
   const endpoints=[
-    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}&range=A:Z&headers=1`,
-    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}&headers=1`,
-    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sname)}`,
+    // export endpoint — ignores ALL active filters, reads raw data
+    `https://docs.google.com/spreadsheets/d/${sid}/export?format=csv&sheet=${encName}`,
+    // gviz with explicit select * query — bypasses view filters
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encName}&tq=select%20*&headers=1`,
+    // gviz with range — partial filter bypass
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encName}&range=A:Z&headers=1`,
+    // plain gviz fallback
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encName}`,
   ];
   let text=null,lastErr='';
   for(const url of endpoints){
@@ -503,16 +531,19 @@ function epMatch(stem,ep){
 function buildReports(combos,files,subs,subMap,customMap){
   const vtNames=[...new Set(combos.map(c=>c.vt))].sort();
   const reports=[];
+  const usedFolders=new Set(); // track already-assigned folders
   for(const vt of vtNames){
     const vtC=combos.filter(c=>c.vt===vt);
-    const matchedSub=subs.find(s=>vtMatch(vt,s.name,customMap));
+    // Find best matching folder that hasn't been claimed yet
+    const matchedSub=subs.find(s=>vtMatch(vt,s.name,customMap)&&!usedFolders.has(s.name));
     const folderName=matchedSub?.name||null;
+    if(folderName) usedFolders.add(folderName);
     const folderUrl=folderName&&subMap[folderName]?subMap[folderName].url:null;
     if(!folderName){
       reports.push({vt,status:'notfound',folderName:null,folderUrl:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});
       continue;
     }
-    const inF=files.filter(f=>vtMatch(vt,f.folder,customMap));
+    const inF=files.filter(f=>f.folder===folderName);
     const deliveredList=[],missing=[];
     for(const{ep}of vtC){
       if(inF.some(f=>epMatch(f.stem,ep)))deliveredList.push(ep);
@@ -551,6 +582,19 @@ function getCompletedEpisodes(combos,vtReports){
 function runQA(files,checks){
   const out=[];
   for(const f of files){
+    // ZIP file — flag always regardless of checks
+    if(f.isZip){
+      out.push({file:f.name,folder:f.folder,fileUrl:f.url,folderUrl:f.folderUrl,
+        severity:'warning',type:'ZIP file',
+        detail:'Compressed file — needs to be extracted before QA'});
+      continue; // skip size checks for ZIPs
+    }
+    // Non-WAV audio
+    if(f.isNonWav){
+      out.push({file:f.name,folder:f.folder,fileUrl:f.url,folderUrl:f.folderUrl,
+        severity:'info',type:'Non-WAV format',
+        detail:`${f.name.split('.').pop().toUpperCase()} file — expected WAV`});
+    }
     if(checks.empty&&f.sizeKb<15){
       out.push({file:f.name,folder:f.folder,fileUrl:f.url,folderUrl:f.folderUrl,severity:'danger',type:'Empty file',detail:`${fmtKb(f.sizeKb)} — no audio detected`});
       continue;
@@ -585,8 +629,16 @@ async function run(){
   const checks={empty:g('chk-empty').checked,small:g('chk-small').checked,naming:g('chk-naming').checked,recent:g('chk-recent').checked};
   try{
     log('Reading Google Sheet…');setPbar(8);
-    const combos=await fetchSheet(sid,sname);
-    log(`${combos.length} EP×VT combinations`);setPbar(28);
+    const [combos, showName] = await Promise.all([
+      fetchSheet(sid,sname),
+      fetchSheetTitle(sid),
+    ]);
+    log(`${combos.length} EP×VT combinations`);
+    if(showName){
+      g('show-name').textContent=showName;
+      log(`Show: ${showName}`);
+    }
+    setPbar(28);
     log('Scanning Drive folders…');
     const{subs,files,subMap}=await scanDrive(fid);
     log(`${files.length} audio files found`);setPbar(68);
@@ -605,10 +657,13 @@ function showMatchModal(combos,subs,files,customMap){
   const sortedSubs=[...subs].sort((a,b)=>a.name.localeCompare(b.name));
 
   // Build initial auto-matching (VT → folder)
+  // Each folder can only be claimed by one VT — first match wins
   const matchMap={};
+  const usedFolders=new Set();
   for(const vt of vtNames){
-    const m=sortedSubs.find(s=>vtMatch(vt,s.name,customMap));
+    const m=sortedSubs.find(s=>vtMatch(vt,s.name,customMap)&&!usedFolders.has(s.name));
     matchMap[vt]=m?m.name:'';
+    if(m) usedFolders.add(m.name);
   }
 
   // Find unmatched folders (have audio, no VT claimed them)
@@ -766,7 +821,9 @@ async function confirmMatching(){
     renderReport(vtReports,completed,partial);
     renderQA(qa);
     renderMatrix(combos,vtReports);
-    renderUnmatched(STATE._unmatchedFolders,files);
+    // assignedFolders = folders actually used in confirmed reports
+    const assignedFolders=new Set(vtReports.map(r=>r.folderName).filter(Boolean));
+    renderUnmatched(subs,files,assignedFolders);
     const nc=vtReports.filter(r=>r.status==='complete').length;
     log(`✓ Done — ${nc}/${vtReports.length} VTs complete, ${completed.length} eps fully delivered`);
     setStat(`${combos.length} expected · ${totalDel} delivered · ${totalMiss} missing · ${qa.length} QA issues · ${completed.length} completed eps`);
@@ -778,10 +835,14 @@ async function confirmMatching(){
 function buildReportsResolved(combos,files,subs,subMap,resolvedMap){
   const vtNames=[...new Set(combos.map(c=>c.vt))].sort();
   const reports=[];
+  // resolvedMap already has explicit 1-to-1 assignments from user confirmation
+  // Still protect against duplicates: if same folder appears twice, second one gets empty
+  const usedFolders=new Set();
   for(const vt of vtNames){
     const vtC=combos.filter(c=>c.vt===vt);
-    // Use resolved map first, then auto-match as fallback
-    const folderName=resolvedMap[norm(vt)]||subs.find(s=>vtMatch(vt,s.name))?.name||null;
+    const candidate=resolvedMap[norm(vt)]||null;
+    const folderName=(candidate&&!usedFolders.has(candidate))?candidate:null;
+    if(folderName) usedFolders.add(folderName);
     const folderUrl=folderName&&subMap[folderName]?subMap[folderName].url:null;
     if(!folderName){
       reports.push({vt,status:'notfound',folderName:null,folderUrl:null,total:vtC.length,delivered:0,missing:vtC.map(c=>c.ep),deliveredList:[]});
@@ -802,19 +863,23 @@ function buildReportsResolved(combos,files,subs,subMap,resolvedMap){
   return reports;
 }
 
-function renderUnmatched(unmatchedFolders,files){
+function renderUnmatched(allSubs,files,assignedFolders){
   const tab=g('tab-unmatched');
-  if(!unmatchedFolders||!unmatchedFolders.length){tab.style.display='none';return;}
+  // Only show folders that: have audio AND were NOT assigned to any VT after confirmation
+  const truly=allSubs.filter(s=>
+    !assignedFolders.has(s.name)&&files.some(f=>f.folder===s.name)
+  );
+  if(!truly.length){tab.style.display='none';return;}
   tab.style.display='';
-  tab.textContent=`⚠ Unmatched (${unmatchedFolders.length})`;
+  tab.textContent=`⚠ Unmatched (${truly.length})`;
   const tbody=g('body-unmatched');
-  tbody.innerHTML=unmatchedFolders.map((s,i)=>{
+  tbody.innerHTML=truly.map((s,i)=>{
     const fls=files.filter(f=>f.folder===s.name);
     const url=`https://drive.google.com/drive/folders/${s.id}`;
     return`<tr class="${i%2?'alt':''}">
       <td><a href="${esc(url)}" target="_blank" style="color:var(--acc2);font-weight:600">${esc(s.name)}</a></td>
       <td style="color:var(--muted)">${fls.length} file${fls.length!==1?'s':''}</td>
-      <td><span style="font-size:11px;color:var(--warn)">No matching VT in script</span></td>
+      <td><span style="font-size:11px;color:var(--warn)">Not assigned to any VT</span></td>
     </tr>`;
   }).join('');
 }
@@ -824,6 +889,14 @@ function renderReport(reports,completed,partial){
   const wrap=g('report-wrap');
   if(!reports.length){wrap.innerHTML='<div class="empty"><span class="empty-icon">📋</span>No data</div>';return;}
   let html='';
+
+  // Show name header in report
+  const showName=g('show-name').textContent;
+  if(showName){
+    html+=`<div style="font-size:13px;font-weight:700;color:var(--acc2);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+      🎬 ${esc(showName)}
+    </div>`;
+  }
 
   // Completed episodes summary
   if(completed.length||partial.length){
