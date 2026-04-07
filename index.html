@@ -213,7 +213,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
           <option value="missing">⚠ No deliveries</option>
           <option value="complete">✓ Complete</option>
         </select>
-        <button class="btn-csv" onclick="exportReport()">↓ CSV</button>
+        <button class="btn-csv" onclick="exportReport()">↓ Excel</button>
       </div>
       <div class="report-wrap" id="report-wrap">
         <div class="empty"><span class="empty-icon">📋</span>Run the analysis to see results</div>
@@ -229,7 +229,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
           <option value="warning">⚠ Warning</option>
           <option value="info">ℹ Info</option>
         </select>
-        <button class="btn-csv" onclick="exportCSV()">↓ CSV</button>
+        <button class="btn-csv" onclick="exportCSV()">↓ Excel</button>
       </div>
       <div class="tbl-wrap">
         <table id="tbl-qa">
@@ -297,6 +297,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const DEFAULTS={sid:'1uJs387TBHVchInhFZifihGxX333AVnWwjF8eS6BLkn0',sname:'Guion sabana',fid:'1gUZJhSW1i3-7rMaUzDhZ2c3-5Z4cM3Hw'};
 let API_KEY='AIzaSyCmI5gCYkkzxo-h7oUJw8SZyIF6KhpJ1Ik';
@@ -887,7 +888,6 @@ function renderReport(reports,completed,partial){
       <div class="completed-eps-title">✓ Completed episodes — all VTs delivered (${completed.length})</div>
       <div class="completed-eps-grid">
         ${completed.map(ep=>`<span class="ep-done">${ep.replace(/[^0-9]/g,'')}</span>`).join('')}
-        ${partial.map(ep=>`<span class="ep-partial" title="Partially delivered">${ep.replace(/[^0-9]/g,'')}~</span>`).join('')}
       </div>
     </div>`;
   }
@@ -1041,58 +1041,82 @@ function setM(id,val,cls){const e=g(id);e.textContent=val;e.className='metric-va
 // ── Export ────────────────────────────────────────────────────
 function exportReport(){
   if(!STATE.vtReports.length){alert('Run the analysis first.');return;}
-  // Summary section
-  const rows=[
-    ['DELIVERY REPORT — ' + today()],
+  const wb=XLSX.utils.book_new();
+  const showName=g('show-name').textContent||'Show';
+
+  // ── Sheet 1: Summary ──
+  const summaryRows=[
+    ['DELIVERY REPORT',showName,today()],
     [],
-    ['SUMMARY'],
-    ['VT','Status','Delivered','Total','%','Missing episodes','Delivered episodes','Folder URL'],
+    ['VT','Status','Delivered','Total','%','Missing episodes','Delivered episodes','Folder'],
   ];
   for(const r of STATE.vtReports){
-    const pct=r.total>0?Math.round(r.delivered/r.total*100)+'%':'—';
-    rows.push([
+    const pct=r.total>0?Math.round(r.delivered/r.total*100):'';
+    summaryRows.push([
       r.vt,
       r.status==='complete'?'Complete':r.status==='partial'?'Incomplete':r.status==='missing'?'No deliveries':'No folder',
-      r.delivered,
-      r.total,
-      pct,
+      r.delivered, r.total, pct,
       r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', '),
       r.deliveredList.map(e=>e.replace(/[^0-9]/g,'')).join(', '),
       r.folderUrl||'',
     ]);
   }
-  // Detail section — one row per VT per episode
-  rows.push([],[],['DETAIL — one row per VT × Episode'],['VT','Episode','Status','Folder URL']);
+  const wsSummary=XLSX.utils.aoa_to_sheet(summaryRows);
+  // Column widths
+  wsSummary['!cols']=[{wch:25},{wch:14},{wch:10},{wch:6},{wch:5},{wch:40},{wch:40},{wch:50}];
+  // Style header row
+  XLSX.utils.book_append_sheet(wb,wsSummary,'Summary');
+
+  // ── Sheet 2: Detail (one row per VT x Episode) ──
   const eps=[...new Set(STATE.combos.map(c=>c.ep))].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
+  const detailRows=[['VT','Episode','Status']];
   for(const r of STATE.vtReports){
     const vtEps=new Set(STATE.combos.filter(c=>c.vt===r.vt).map(c=>c.ep));
     for(const ep of eps){
       if(!vtEps.has(ep))continue;
       const delivered=r.deliveredList.includes(ep);
       const status=r.status==='notfound'?'No folder':delivered?'Delivered':'Missing';
-      rows.push([r.vt,ep.replace(/[^0-9]/g,''),status,r.folderUrl||'']);
+      detailRows.push([r.vt, parseInt(ep.replace(/\D/g,'')), status]);
     }
   }
-  // Completed episodes
+  const wsDetail=XLSX.utils.aoa_to_sheet(detailRows);
+  wsDetail['!cols']=[{wch:25},{wch:8},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsDetail,'Detail');
+
+  // ── Sheet 3: Completed episodes ──
   if(STATE.completed&&STATE.completed.length){
-    rows.push([],[],['COMPLETED EPISODES (all VTs delivered)']);
-    rows.push([STATE.completed.map(e=>e.replace(/[^0-9]/g,'')).join(', ')]);
+    const compRows=[
+      ['Completed episodes — all VTs delivered'],
+      [],
+      ['Episode'],
+      ...STATE.completed.map(e=>[parseInt(e.replace(/\D/g,''))]),
+    ];
+    const wsComp=XLSX.utils.aoa_to_sheet(compRows);
+    wsComp['!cols']=[{wch:12}];
+    XLSX.utils.book_append_sheet(wb,wsComp,'Completed Episodes');
   }
-  dlCSV(rows,`delivery_report_${today()}.csv`);
+
+  // ── Sheet 4: QA Issues ──
+  if(STATE.qa&&STATE.qa.length){
+    const qaRows=[['File','VT','Type','Severity','Detail'],...STATE.qa.map(q=>[q.file,q.folder,q.type,q.severity,q.detail])];
+    const wsQA=XLSX.utils.aoa_to_sheet(qaRows);
+    wsQA['!cols']=[{wch:40},{wch:20},{wch:20},{wch:10},{wch:50}];
+    XLSX.utils.book_append_sheet(wb,wsQA,'QA Issues');
+  }
+
+  const fn=`delivery_report_${showName.replace(/[^a-z0-9]/gi,'_')}_${today()}.xlsx`;
+  XLSX.writeFile(wb,fn);
 }
+
 function exportCSV(){
   if(!STATE.qa.length){alert('No QA issues to export.');return;}
-  const rows=[['File','VT','Type','Severity','Detail','File URL','Folder URL'],...STATE.qa.map(q=>[q.file,q.folder,q.type,q.severity,q.detail,q.fileUrl,q.folderUrl||''])];
-  dlCSV(rows,`qa_issues_${today()}.csv`);
-}
-function dlCSV(rows,fn){
-  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${(c||'').toString().replace(/"/g,'""')}"`).join(',')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=fn;
-  document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},100);
+  // Keep QA export as CSV for quick access
+  const wb=XLSX.utils.book_new();
+  const rows=[['File','VT','Type','Severity','Detail'],...STATE.qa.map(q=>[q.file,q.folder,q.type,q.severity,q.detail])];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:40},{wch:20},{wch:20},{wch:10},{wch:50}];
+  XLSX.utils.book_append_sheet(wb,ws,'QA Issues');
+  XLSX.writeFile(wb,`qa_issues_${today()}.xlsx`);
 }
 </script>
 </body>
