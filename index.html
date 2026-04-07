@@ -115,34 +115,39 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
 
 /* MATCH MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:flex;align-items:center;justify-content:center}
-.modal{background:var(--surf);border:1px solid var(--border);border-radius:12px;width:min(860px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:12px;width:min(900px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
 .modal-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .modal-title{font-size:15px;font-weight:700;flex:1}
 .modal-sub{font-size:11px;color:var(--muted);margin-top:2px}
-.modal-body{overflow-y:auto;flex:1;min-height:0}
-.modal-legend{display:flex;gap:14px;padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0;font-size:11px}
+.modal-two-col{display:grid;grid-template-columns:230px 1fr;flex:1;overflow:hidden;min-height:0}
+.modal-folders-panel{border-right:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:2px}
+.modal-folders-title{font-size:9px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;flex-shrink:0}
+.folder-chip{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;font-size:11px;cursor:default;transition:background .1s}
+.folder-chip.claimed{background:rgba(61,214,140,.1);color:var(--ok)}
+.folder-chip.unclaimed{background:rgba(245,166,35,.1);color:var(--warn)}
+.folder-chip.empty-f{background:rgba(255,255,255,.03);color:var(--muted2)}
+.folder-chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.folder-chip.claimed .folder-chip-dot{background:var(--ok)}
+.folder-chip.unclaimed .folder-chip-dot{background:var(--warn)}
+.folder-chip.empty-f .folder-chip-dot{background:var(--muted2)}
+.folder-chip-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.folder-chip-count{font-size:9px;opacity:.6;flex-shrink:0}
+.modal-match-panel{overflow-y:auto;flex:1}
 .modal-footer{padding:10px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
 .btn-confirm{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
 .btn-confirm:hover{background:var(--acc2)}
 .btn-cancel{padding:9px 16px;background:var(--surf2);color:var(--muted);border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer}
 .btn-cancel:hover{color:var(--text)}
-/* Big match table — 3 columns: Drive folder | arrow | VT from script */
-.match-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.match-tbl th{background:var(--surf2);padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
-.match-tbl td{padding:7px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
-.match-tbl tr:hover td{background:var(--surf2)}
-.match-tbl .td-folder{width:35%;font-weight:600}
-.match-tbl .td-arrow{width:40px;text-align:center;color:var(--muted2);font-size:14px}
-.match-tbl .td-vt{width:35%}
-.match-tbl .td-status{width:100px;white-space:nowrap}
-.row-matched td{background:rgba(61,214,140,.04)}
-.row-vt-only td{background:rgba(255,92,92,.04)}
-.row-folder-only td{background:rgba(245,166,35,.04)}
-.row-empty td{background:rgba(255,255,255,.01);opacity:.5}
-.match-status{font-size:11px;font-weight:600}
+.match-table{width:100%;border-collapse:collapse;font-size:12px}
+.match-table th{background:var(--surf2);padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
+.match-table td{padding:7px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.match-table tr:hover td{background:rgba(255,255,255,.03)}
+.row-ok td{background:rgba(61,214,140,.04)}
+.row-miss td{background:rgba(255,92,92,.04)}
+.match-status{font-size:11px;font-weight:600;white-space:nowrap}
 .match-folder-sel{background:var(--surf2);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-size:12px;outline:none;width:100%}
 .match-folder-sel:focus{border-color:var(--accent)}
-.unmatched-alert{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:10px 14px;margin:10px 20px}
+.unmatched-alert{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:10px 14px;margin:10px 14px 0}
 .unmatched-alert-title{font-size:12px;font-weight:700;color:var(--warn);margin-bottom:4px}
 .unmatched-item{font-size:11px;padding:3px 0;color:var(--muted)}
 .unmatched-item a{color:var(--acc2)}
@@ -272,25 +277,18 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
         <div class="modal-sub">Review how VTs from the script are matched to Drive folders. Fix any wrong matches before running.</div>
       </div>
     </div>
-    <div class="modal-legend">
-      <span style="color:var(--ok)">● Matched</span>
-      <span style="color:var(--danger)">● VT without folder</span>
-      <span style="color:var(--warn)">● Folder without VT</span>
-      <span style="color:var(--muted2)">● Empty folder</span>
-    </div>
-    <div id="unmatched-folders-alert"></div>
-    <div class="modal-body">
-      <table class="match-tbl">
-        <thead>
-          <tr>
-            <th class="td-folder">Drive folder</th>
-            <th class="td-arrow"></th>
-            <th class="td-vt">VT in script → assign folder</th>
-            <th class="td-status">Status</th>
-          </tr>
-        </thead>
-        <tbody id="match-tbody"></tbody>
-      </table>
+    <div class="modal-two-col">
+      <div class="modal-folders-panel">
+        <div class="modal-folders-title">📁 Drive folders</div>
+        <div id="folders-panel-list"></div>
+      </div>
+      <div class="modal-match-panel">
+        <div id="unmatched-folders-alert"></div>
+        <table class="match-table">
+          <thead><tr><th>VT (from script)</th><th>Assign folder</th><th>Status</th></tr></thead>
+          <tbody id="match-tbody"></tbody>
+        </table>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeMatchModal()">Cancel</button>
@@ -652,12 +650,10 @@ async function run(){
 }
 
 function showMatchModal(combos,subs,files,customMap){
-  // Sort both alphabetically
   const vtNames=[...new Set(combos.map(c=>c.vt))].sort((a,b)=>a.localeCompare(b));
   const sortedSubs=[...subs].sort((a,b)=>a.name.localeCompare(b.name));
 
-  // Build initial auto-matching (VT → folder)
-  // Each folder can only be claimed by one VT — first match wins
+  // Auto-match: each folder can only be claimed by ONE VT
   const matchMap={};
   const usedFolders=new Set();
   for(const vt of vtNames){
@@ -666,7 +662,7 @@ function showMatchModal(combos,subs,files,customMap){
     if(m) usedFolders.add(m.name);
   }
 
-  // Find unmatched folders (have audio, no VT claimed them)
+  // Folders with audio not claimed by any VT
   const claimedFolders=new Set(Object.values(matchMap).filter(Boolean));
   const unmatchedFolders=sortedSubs.filter(s=>
     !claimedFolders.has(s.name)&&files.some(f=>f.folder===s.name)
@@ -677,66 +673,43 @@ function showMatchModal(combos,subs,files,customMap){
     const items=unmatchedFolders.map(s=>{
       const n=files.filter(f=>f.folder===s.name).length;
       const url=`https://drive.google.com/drive/folders/${s.id}`;
-      return`<div class="unmatched-item">⚠ <a href="${esc(url)}" target="_blank">${esc(s.name)}</a> — ${n} file${n!==1?'s':''}, no matching VT in script</div>`;
+      return`<div class="unmatched-item">⚠ <a href="${esc(url)}" target="_blank">${esc(s.name)}</a> — ${n} file${n!==1?'s':''}, not matched to any VT</div>`;
     }).join('');
     g('unmatched-folders-alert').innerHTML=
-      `<div class="unmatched-alert"><div class="unmatched-alert-title">⚠ ${unmatchedFolders.length} folder${unmatchedFolders.length>1?'s':''} with audio not matched to any VT</div>${items}</div>`;
+      `<div class="unmatched-alert"><div class="unmatched-alert-title">⚠ ${unmatchedFolders.length} folder${unmatchedFolders.length>1?'s':''} with audio not assigned to any VT</div>${items}</div>`;
   } else {
     g('unmatched-folders-alert').innerHTML='';
   }
 
-  // Build merged rows: interleave folders and VTs sorted alphabetically
-  // Show ALL folders on left, ALL VTs on right, matched by row when possible
-  // Strategy: one row per VT (sorted), show their matched folder on left
-  // Then extra rows for unmatched folders at bottom
-  const folderOpts=(matched)=>[
-    '<option value="">— no folder —</option>',
-    ...sortedSubs.map(s=>`<option value="${esc(s.name)}"${matched===s.name?' selected':''}>${esc(s.name)}</option>`)
-  ].join('');
+  // ── LEFT: folder chips (sorted A-Z) ──
+  const chips=sortedSubs.map(s=>{
+    const hasAudio=files.some(f=>f.folder===s.name);
+    const isClaimed=claimedFolders.has(s.name);
+    const cls=!hasAudio?'empty-f':isClaimed?'claimed':'unclaimed';
+    const count=files.filter(f=>f.folder===s.name).length;
+    const url=`https://drive.google.com/drive/folders/${s.id}`;
+    return`<div class="folder-chip ${cls}" id="chip-${esc(s.name.replace(/\W/g,'_'))}">
+      <div class="folder-chip-dot"></div>
+      <a class="folder-chip-name" href="${esc(url)}" target="_blank" style="color:inherit;text-decoration:none" title="${esc(s.name)}">${esc(s.name)}</a>
+      <span class="folder-chip-count">${hasAudio?count+'f':''}</span>
+    </div>`;
+  }).join('');
+  g('folders-panel-list').innerHTML=chips;
 
-  // Rows for each VT (sorted A-Z)
-  let rows=vtNames.map(vt=>{
-    const folder=matchMap[vt];
-    const fileCount=folder?files.filter(f=>f.folder===folder).length:0;
-    const folderUrl=folder?`https://drive.google.com/drive/folders/${subs.find(s=>s.name===folder)?.id||''}`:null;
-    const rowCls=folder?'row-matched':'row-vt-only';
-    const statusTxt=folder?'✓ Matched':'✗ No folder';
-    const statusClr=folder?'var(--ok)':'var(--danger)';
-    const folderCell=folder
-      ?`<span style="font-weight:600;color:var(--ok)">${esc(folder)}</span>
-        <span style="font-size:10px;color:var(--muted);margin-left:6px">${fileCount} file${fileCount!==1?'s':''}</span>
-        ${folderUrl?`<a href="${esc(folderUrl)}" target="_blank" style="font-size:10px;color:var(--acc2);margin-left:6px">↗</a>`:''}`
-      :`<span style="color:var(--muted2);font-size:11px">—</span>`;
-    return`<tr class="${rowCls}" data-vt="${esc(vt)}">
-      <td class="td-folder">${folderCell}</td>
-      <td class="td-arrow">→</td>
-      <td class="td-vt">
-        <div style="font-weight:600;margin-bottom:3px">${esc(vt)}</div>
-        <select class="match-folder-sel" data-vt="${esc(vt)}" onchange="updateMatch(this)">${folderOpts(folder)}</select>
-      </td>
-      <td class="td-status"><span class="match-status" style="color:${statusClr}">${statusTxt}</span></td>
+  // ── RIGHT: VT match table (sorted A-Z, dropdown sorted A-Z) ──
+  const rows=vtNames.map(vt=>{
+    const matched=matchMap[vt];
+    const opts=['<option value="">— no folder —</option>',
+      ...sortedSubs.map(s=>`<option value="${esc(s.name)}"${matched===s.name?' selected':''}>${esc(s.name)}</option>`)
+    ].join('');
+    return`<tr class="${matched?'row-ok':'row-miss'}" data-vt="${esc(vt)}">
+      <td style="font-weight:600">${esc(vt)}</td>
+      <td><select class="match-folder-sel" data-vt="${esc(vt)}" onchange="updateMatch(this)">${opts}</select></td>
+      <td><span class="match-status" style="color:${matched?'var(--ok)':'var(--danger)'}">${matched?'✓ Matched':'✗ No folder'}</span></td>
     </tr>`;
   }).join('');
-
-  // Extra rows for unmatched folders (no VT assigned)
-  if(unmatchedFolders.length){
-    rows+=unmatchedFolders.map(s=>{
-      const n=files.filter(f=>f.folder===s.name).length;
-      const url=`https://drive.google.com/drive/folders/${s.id}`;
-      return`<tr class="row-folder-only">
-        <td class="td-folder">
-          <span style="font-weight:600;color:var(--warn)">${esc(s.name)}</span>
-          <span style="font-size:10px;color:var(--muted);margin-left:6px">${n} file${n!==1?'s':''}</span>
-          <a href="${esc(url)}" target="_blank" style="font-size:10px;color:var(--acc2);margin-left:6px">↗</a>
-        </td>
-        <td class="td-arrow" style="color:var(--warn)">⚠</td>
-        <td class="td-vt"><span style="color:var(--muted);font-size:11px">No matching VT in script</span></td>
-        <td class="td-status"><span class="match-status" style="color:var(--warn)">⚠ Unmatched</span></td>
-      </tr>`;
-    }).join('');
-  }
-
   g('match-tbody').innerHTML=rows;
+
   STATE._matchMap=matchMap;
   STATE._unmatchedFolders=unmatchedFolders;
   STATE._sortedSubs=sortedSubs;
@@ -746,27 +719,37 @@ function showMatchModal(combos,subs,files,customMap){
 
 function updateMatch(sel){
   const vt=sel.dataset.vt;
-  const folder=sel.value;
-  STATE._matchMap[vt]=folder;
-  const row=sel.closest('tr');
-  const files=STATE._pending?STATE._pending.files:[];
-  const subs=STATE._sortedSubs||[];
-  // Update row class and status
-  row.className=folder?'row-matched':'row-vt-only';
-  row.querySelector('.match-status').textContent=folder?'✓ Matched':'✗ No folder';
-  row.querySelector('.match-status').style.color=folder?'var(--ok)':'var(--danger)';
-  // Update folder cell display
-  const fc=row.querySelector('.td-folder');
-  if(folder){
-    const n=files.filter(f=>f.folder===folder).length;
-    const sub=subs.find(s=>s.name===folder);
-    const url=sub?`https://drive.google.com/drive/folders/${sub.id}`:'';
-    fc.innerHTML=`<span style="font-weight:600;color:var(--ok)">${esc(folder)}</span>
-      <span style="font-size:10px;color:var(--muted);margin-left:6px">${n} file${n!==1?'s':''}</span>
-      ${url?`<a href="${esc(url)}" target="_blank" style="font-size:10px;color:var(--acc2);margin-left:6px">↗</a>`:''}`;
-  } else {
-    fc.innerHTML=`<span style="color:var(--muted2);font-size:11px">—</span>`;
+  const newFolder=sel.value;
+  const prevFolder=STATE._matchMap[vt]||'';
+
+  // If newFolder is already claimed by another VT, block it
+  if(newFolder){
+    const alreadyClaimed=Object.entries(STATE._matchMap).some(([k,v])=>v===newFolder&&k!==vt);
+    if(alreadyClaimed){
+      alert(`"${newFolder}" is already assigned to another VT. Choose a different folder or unassign it first.`);
+      sel.value=prevFolder; // revert
+      return;
+    }
   }
+
+  STATE._matchMap[vt]=newFolder;
+  const row=sel.closest('tr');
+  row.className=newFolder?'row-ok':'row-miss';
+  const st=row.querySelector('.match-status');
+  st.textContent=newFolder?'✓ Matched':'✗ No folder';
+  st.style.color=newFolder?'var(--ok)':'var(--danger)';
+
+  // Refresh folder chips
+  const claimedFolders=new Set(Object.values(STATE._matchMap).filter(Boolean));
+  const files=STATE._files||[];
+  document.querySelectorAll('.folder-chip').forEach(chip=>{
+    const nameEl=chip.querySelector('.folder-chip-name');
+    if(!nameEl)return;
+    const name=nameEl.textContent;
+    const hasAudio=files.some(f=>f.folder===name);
+    const isClaimed=claimedFolders.has(name);
+    chip.className='folder-chip '+(!hasAudio?'empty-f':isClaimed?'claimed':'unclaimed');
+  });
 }
 
 function closeMatchModal(){
