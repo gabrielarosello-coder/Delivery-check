@@ -105,7 +105,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
     <div class="sb-lbl">Configuration</div>
     <div class="field"><label>Google Sheet ID</label><input id="sid" type="text" placeholder="ID ofl spreadsheet"></div>
     <div class="field"><label>Script sheet tab name</label><input id="sname" type="text" placeholder="Tab name inside the sheet (e.g. GUION COMPLETO)></div>
-    <div class="field"><label>Drive folofr ID (deliveries)</label><input id="fid" type="text" placeholder="ID of the root VT folder"></div>
+    <div class="field"><label>Drive folofr ID (deliveries)</label><input id="fid" type="text" placeholder="Folder ID or full Google Drive link"></div>
     <p class="hint">Sheet and folofr must be shared as <strong style="color:var(--text)">"anyone with the link can view"</strong></p>
   </div>
   <div class="sb-sec">
@@ -141,7 +141,7 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
         <input type="text" id="q-report" placeholder="Search VT..." oninput="filterReport()">
         <select id="f-status" onchange="filterReport()">
           <option value="">All VTs</option>
-          <option value="notfound">✗ No folofr</option>
+          <option value="notfound">✗ No folder</option>
           <option value="partial">⚠ Incomplete</option>
           <option value="complete">✓ Complete</option>
         </select>
@@ -177,9 +177,19 @@ tr.alt td{background:rgba(255,255,255,.018)}tr:hover td{background:var(--surf2)}
 </main>
 </div>
 <script>
-const DEFAULTS={sid:'1rnMbF5M39ctv13eSQVqFrSeqQsLStaYK',sname:'GUION COMPLETO',fid:'1khWGnux1cn6jEogU-l3kRyqCydrBJaFj'};
+const DEFAULTS={sid:'1uJs387TBHVchInhFZifihGxX333AVnWwjF8eS6BLkn0',sname:'Guion sabana',fid:'1khWGnux1cn6jEogU-l3kRyqCydrBJaFj'};
 const API_KEY='AIzaSyCmI5gCYkkzxo-h7oUJw8SZyIF6KhpJ1Ik';
 const DRIVE='https://www.googleapis.com/drive/v3/files';
+
+// Extracts IDs from full Google URLs or returns as-is if already an ID
+function extractSheetId(input){
+  const m=input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return m?m[1]:input.trim();
+}
+function extractFolderId(input){
+  const m=input.match(/\/folders\/([a-zA-Z0-9_-]+)/)||input.match(/id=([a-zA-Z0-9_-]+)/);
+  return m?m[1]:input.trim();
+}
 let STATE={combos:[],files:[],vtReports:[],qa:[]};
 (function init(){try{const p=JSON.parse(localStorage.getItem('dqa')||'{}');g('sid').value=p.sid||DEFAULTS.sid;g('sname').value=p.sname||DEFAULTS.sname;g('fid').value=p.fid||DEFAULTS.fid;}catch{}})();
 function g(id){return document.getElementById(id);}
@@ -285,7 +295,7 @@ function fmtKb(kb){return kb<1024?kb.toFixed(1)+' KB':(kb/1024).toFixed(1)+' MB'
 async function run(){
   const btn=g('btn-run');btn.disabled=true;btn.textContent='Analyzing…';g('logbox').innerHTML='';
   try{localStorage.setItem('dqa',JSON.stringify({sid:v('sid'),sname:v('sname'),fid:v('fid')}));}catch{}
-  const sid=v('sid'),sname=v('sname'),fid=v('fid');
+  const sid=extractSheetId(v('sid')),sname=v('sname'),fid=extractFolderId(v('fid'));
   if(!sid||!fid){alert('Enter Sheet ID and Folofr ID.');btn.disabled=false;btn.textContent='▶  Run analysis';return;}
   const checks={empty:g('chk-empty').checked,small:g('chk-small').checked,naming:g('chk-naming').checked,recent:g('chk-recent').checked};
   try{
@@ -324,7 +334,7 @@ function vtCard(r){
   let body='';
   if(r.status==='notfound'){
     const epNums=r.missing.map(e=>e.replace(/[^0-9]/g,'')).join(', ');
-    body=`<div class="notfound-body">No folofr found for <strong>${esc(r.vt)}</strong> in Drive.<div class="notfound-eps">Appears in episoofs: ${esc(epNums)}</div></div>`;
+    body=`<div class="notfound-body">No folder found for <strong>${esc(r.vt)}</strong> in Drive.<div class="notfound-eps">Appears in episoofs: ${esc(epNums)}</div></div>`;
   }else{
     const allEps=[...r.missing,...r.deliveredList].sort((a,b)=>parseInt(a.replace(/\D/g,''))-parseInt(b.replace(/\D/g,'')));
     const chips=allEps.map(ep=>{const isMiss=r.missing.includes(ep);const n=ep.replace(/[^0-9]/g,'');return`<span class="ep ${isMiss?'ep-miss':'ep-ok'}">${n}</span>`;}).join('');
